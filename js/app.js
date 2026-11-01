@@ -386,6 +386,10 @@
       Store.clearIssue();
     }
     if (!Store.settings.introSeen) showIntro();
+    /* Gør appen installerbar og brugbar uden net. Virker kun over https eller localhost. */
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      navigator.serviceWorker.register('sw.js').catch(() => { /* Appen virker også uden */ });
+    }
   }
 
   init();

@@ -1,0 +1,17 @@
+{
+  "id": "./",
+  "name": "Grejs Bane Byg",
+  "short_name": "Bane Byg",
+  "description": "Design springbaner til ridehal og udendørs bane. Alt gemmes lokalt på din enhed.",
+  "lang": "da",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f4ef",
+  "theme_color": "#1f4d3a",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

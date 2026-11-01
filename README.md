@@ -8,6 +8,7 @@ Appen er en statisk side i HTML, CSS og almindelig JavaScript. Den har ingen bac
 
 - **Lokalt:** Åbn `index.html` i en browser.
 - **Online:** Læg hele mappen på en webserver eller GitHub Pages. Vælg mappen som kilde under *Settings → Pages*.
+- **Installér som app:** Åbn siden over https i Chrome eller Edge, og vælg installér-ikonet i adresselinjen. Det virker ikke, når `index.html` åbnes direkte som fil.
 
 Data ligger i browserens `localStorage` under nøglen `grejsBygSpring_v1`. Data følger browser og webadresse, så en bane gemt på telefonen ses ikke på computeren. Flyt baner med **Indstillinger → Eksportér backup / Importér backup**.
 
@@ -23,6 +24,8 @@ Data ligger i browserens `localStorage` under nøglen `grejsBygSpring_v1`. Data 
 | `js/exporter.js` | PNG og udskrift/PDF |
 | `js/editor.js` | Banebyggeren: gestik, værktøjer, fortryd og paneler |
 | `js/app.js` | Startside, ridehal, indstillinger og navigation |
+| `manifest.webmanifest`, `icons/` | Navn og ikoner til den installerede app |
+| `sw.js` | Service worker: henter nyeste version, når der er net, og bruger en gemt kopi uden net |
 
 ## Designvalg
 

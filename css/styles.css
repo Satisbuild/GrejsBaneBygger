@@ -20,7 +20,8 @@
   color-scheme: light;
 }
 
-* { box-sizing: border-box; }
+/* manipulation slår browserens zoom ved dobbelttryk fra, men bevarer rulning og knibezoom. */
+* { box-sizing: border-box; touch-action: manipulation; }
 html, body { height: 100%; }
 body {
   margin: 0;
