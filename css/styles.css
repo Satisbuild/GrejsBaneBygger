@@ -361,6 +361,18 @@ a.card:active { transform: scale(.995); }
 .show-toggle { margin-top: 12px; }
 .show-dlg .dlg-actions { position: sticky; bottom: 0; background: #fff; border-top: 1px solid var(--line); }
 
+/* Deling af en bane */
+.share-halls { display: flex; flex-direction: column; gap: 8px; }
+.share-hall { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 8px 12px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; }
+.share-hall:has(input:checked) { border-color: var(--forest); background: var(--forest-tint); }
+.share-hall input { width: 20px; height: 20px; flex: none; accent-color: var(--forest); }
+.share-hall strong { display: block; overflow-wrap: anywhere; }
+.share-hall small { display: block; color: var(--ink-2); font-size: 14px; }
+.share-warn { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin-bottom: 10px; border-radius: 12px; background: #fff4d6; font-size: 14px; line-height: 1.35; }
+.share-warn .ic { flex: none; color: var(--amber); }
+.share-note { padding-bottom: 12px; }
+.show-dlg .field { margin-bottom: 4px; }
+
 /* Afstande mellem spring */
 .dist-intro { color: var(--ink-2); font-size: 15px; margin-bottom: 10px; }
 .dist-list { display: flex; flex-direction: column; gap: 8px; }

@@ -53,6 +53,8 @@ window.GBS = window.GBS || {};
     bush: '<g fill="#6aa84f" stroke="#4b8136" stroke-width="1"><circle cx="12" cy="6.5" r="4"/><circle cx="17.5" cy="11" r="4"/><circle cx="15.5" cy="17" r="4"/><circle cx="8.5" cy="17" r="4"/><circle cx="6.5" cy="11" r="4"/></g><circle cx="12" cy="12" r="4.5" fill="#8cc06f" stroke="none"/>',
     flowers: '<rect x="2" y="8" width="20" height="8" rx="2" fill="#8a5a33" stroke="#5e3d22" stroke-width="1"/><circle cx="7" cy="12" r="2.3" fill="#e64980" stroke="none"/><circle cx="12" cy="12" r="2.3" fill="#fcc419" stroke="none"/><circle cx="17" cy="12" r="2.3" fill="#e64980" stroke="none"/>',
     trophy: '<path d="M8 4h8v6a4 4 0 01-8 0z"/><path d="M8 6H4v2a4 4 0 004 4M16 6h4v2a4 4 0 01-4 4M12 14v4M8 21h8M9.5 18h5"/>',
+    share: '<circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.7l7.4-4.4M8.3 13.3l7.4 4.4"/>',
+    link: '<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>',
     ruler: '<path d="M3 16L16 3l5 5L8 21z"/><path d="M7.5 11.5l2 2M10.5 8.5l2.5 2.5M13.5 5.5l2 2"/>',
   };
 

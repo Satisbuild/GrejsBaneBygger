@@ -11,6 +11,7 @@ const FILES = [
   'css/styles.css',
   'js/ui.js',
   'js/store.js',
+  'js/share.js',
   'js/scene.js',
   'js/exporter.js',
   'js/route.js',

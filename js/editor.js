@@ -5,7 +5,7 @@
 (function (GBS) {
   'use strict';
 
-  const { UI, Store, Scene, Exporter, Route } = GBS;
+  const { UI, Store, Scene, Exporter, Route, Share } = GBS;
   const { icon, esc, parseNum, fmtNum, clamp, toast } = UI;
 
   const SIDE_LAYOUT = '(min-width: 900px), (orientation: landscape) and (min-width: 640px) and (max-height: 520px)';
@@ -1804,6 +1804,57 @@
       });
     }
 
+    /* Sender banen som link eller fil. Linket laves først, så delingen starter direkte fra trykket. */
+    async function openShare() {
+      let link = '';
+      try {
+        link = await Share.buildLink(hall, course);
+      } catch (err) {
+        toast('Linket kunne ikke laves. Send banen som fil i stedet.', 'error');
+      }
+      const canShareLink = !!navigator.share && !!link;
+      const option = (name, ic, title, note) => '<button type="button" class="out-option" data-share="' + name + '">' + icon(ic) +
+        '<span><strong>' + title + '</strong><small>' + note + '</small></span></button>';
+      const long = link.length > Share.LONG_LINK;
+      const body = '<div class="out-options">' +
+        (canShareLink ? option('send', 'share', 'Send link', 'F.eks. over Messenger. Modtageren trykker på linket og vælger en ridehal.') : '') +
+        (link ? option('copy', 'link', 'Kopiér link', 'Sæt det ind i en besked selv.') : '') +
+        option('file', 'download', 'Send som fil', 'Har logoet med. Modtageren gemmer filen og vælger den med Importér bane på forsiden.') +
+        '</div>' +
+        (long ? '<p class="show-note share-note">Banen er stor, så linket er langt. Virker det ikke, så send den som fil.</p>' : '');
+      UI.openDialog({
+        title: 'Del "' + course.name + '"',
+        sheet: true,
+        body,
+        onOpen: (d, fin) => {
+          d.addEventListener('click', async (e) => {
+            const b = e.target.closest('[data-share]');
+            if (!b) return;
+            const kind = b.dataset.share;
+            try {
+              if (kind === 'send') {
+                await navigator.share({ title: course.name, text: 'Springbane: ' + course.name, url: link });
+              } else if (kind === 'copy') {
+                if (!await Share.copyText(link)) throw new Error('Linket kunne ikke kopieres.');
+                toast('Linket er kopieret.');
+              } else {
+                const file = Share.buildFile(hall, course);
+                if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: course.name });
+                else {
+                  UI.download(file, file.name);
+                  toast('Filen er gemt i dine overførsler.');
+                }
+              }
+              fin(null);
+            } catch (err) {
+              /* Har man selv lukket delingen, er der ingen fejl at vise. */
+              if (err.name !== 'AbortError') toast(err.message || 'Banen kunne ikke deles.', 'error');
+            }
+          });
+        },
+      });
+    }
+
     function runOutput(action, contest) {
       if (action === 'png') {
         Exporter.exportPng(hall, course, { contest }).then(() => toast('Billedet er gemt i dine overførsler.')).catch((err) => toast(err.message, 'error'));
@@ -2018,6 +2069,7 @@
         '<div class="row-field col"><span class="row-label">Vis banen</span>' + seg('orientation', [['auto', 'Automatisk'], ['landscape', 'Liggende'], ['portrait', 'Stående']], view.orientation) + '</div>' +
         '<div class="row-field col"><span class="row-label">Drej i trin</span>' + seg('rotationStep', STEPS, view.rotationStep) + '</div>' +
         '<hr>' +
+        '<button type="button" class="menu-item" data-menu="share">' + icon('share') + '<span>Del bane</span></button>' +
         '<button type="button" class="menu-item" data-menu="png">' + icon('image') + '<span>Gem bane som billede (PNG)</span></button>' +
         '<button type="button" class="menu-item" data-menu="print">' + icon('print') + '<span>Udskriv eller gem som PDF</span></button>' +
         '<button type="button" class="menu-item" data-menu="rename">' + icon('edit') + '<span>Omdøb bane</span></button>' +
@@ -2053,7 +2105,9 @@
         if (!m) return;
         const action = m.dataset.menu;
         finish(null);
-        if (action === 'png' || action === 'print') {
+        if (action === 'share') {
+          openShare();
+        } else if (action === 'png' || action === 'print') {
           chooseOutput(action);
         } else if (action === 'rename') {
           renameCourse();

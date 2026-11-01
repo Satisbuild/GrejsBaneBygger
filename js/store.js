@@ -332,6 +332,31 @@
     return hall;
   }
 
+  /* Renser en modtaget bane. Returnerer null, hvis den ikke ligner en bane fra appen. */
+  function cleanShared(raw) {
+    if (!raw || typeof raw !== 'object' || raw.app !== 'grejsBaneByg' || !raw.hall || !raw.course) return null;
+    if (!isNum(raw.hall.length) || !isNum(raw.hall.width) || raw.hall.length <= 0 || raw.hall.width <= 0) return null;
+    const course = normCourse(raw.course, new Set());
+    if (!course) return null;
+    const hall = {
+      name: String(raw.hall.name || 'Ridehal').slice(0, 60),
+      length: num(raw.hall.length, 40, 5, 500),
+      width: num(raw.hall.width, 20, 5, 500),
+    };
+    if (goodLogo(raw.hall.logo)) hall.logo = raw.hall.logo;
+    return { hall, course };
+  }
+
+  function addSharedCourse(hall, course, name) {
+    const copy = JSON.parse(JSON.stringify(course));
+    copy.id = uid('c');
+    copy.name = String(name || course.name).slice(0, 60);
+    copy.updatedAt = Date.now();
+    hall.courses.unshift(copy);
+    scheduleSave();
+    return copy;
+  }
+
   function createCourse(hall, name) {
     const c = newCourse(name || nextCourseName(hall));
     hall.courses.unshift(c);
@@ -491,7 +516,7 @@
       const i = statusListeners.indexOf(fn);
       if (i >= 0) statusListeners.splice(i, 1);
     },
-    getHall, getCourse, createHall, createCourse, duplicateCourse, deleteCourse, deleteHall, touchCourse,
+    getHall, getCourse, createHall, cleanShared, addSharedCourse, createCourse, duplicateCourse, deleteCourse, deleteHall, touchCourse,
     nextCourseName, countOutside, resizeHall, normAngle, round2,
     exportBackup, parseBackup, replaceFromBackup, mergeFromBackup, deleteEverything, storageBytes,
   };

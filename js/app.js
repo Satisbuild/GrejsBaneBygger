@@ -3,7 +3,7 @@
 (function (GBS) {
   'use strict';
 
-  const { UI, Store, Scene, Editor } = GBS;
+  const { UI, Store, Scene, Editor, Share } = GBS;
   const { icon, esc, fmtNum, parseNum, toast } = UI;
 
   const app = document.getElementById('app');
@@ -145,6 +145,70 @@
 
   const UPDATED_FLAG = 'grejsBaneByg_opdateret';
 
+  /* Går videre uden at efterlade linket i historikken, så Tilbage ikke åbner banen igen. */
+  function leaveShared(hash) {
+    if (location.hash.indexOf('#/del/') === 0) location.replace(hash);
+    else if (hash !== '#/') go(hash);
+  }
+
+  /* Viser en modtaget bane. Der gemmes intet, før man selv har valgt en ridehal. */
+  async function openShared(raw) {
+    const shared = Store.cleanShared(raw);
+    if (!shared) throw new Error('Det er ikke en bane fra Grejs Bane Byg.');
+    const halls = Store.state.halls;
+    const { hall: from, course } = shared;
+    const same = halls.find((h) => h.name === from.name && h.length === from.length && h.width === from.width) ||
+      halls.find((h) => h.length === from.length && h.width === from.width);
+    const size = (h) => fmtNum(h.length) + ' × ' + fmtNum(h.width) + ' m';
+    const choice = (value, title, note, on) => '<label class="share-hall"><input type="radio" name="shareHall" value="' + esc(value) + '"' + (on ? ' checked' : '') + '><span><strong>' + esc(title) + '</strong><small>' + esc(note) + '</small></span></label>';
+    const body = document.createElement('div');
+    body.innerHTML =
+      (Share.inAppBrowser() ? '<p class="share-warn">' + icon('warning') + '<span>Du er i en apps indbyggede browser, og banen gemmes kun dér. Vælg <b>Åbn i browser</b> i appens menu først.</span></p>' : '') +
+      '<div class="show-preview">' + Scene.standalone(from, course, { rot: from.length >= from.width ? 0 : 90 }).svg + '</div>' +
+      '<label class="field"><span>Banens navn</span><span class="field-input"><input data-share-name maxlength="60" autocomplete="off" value="' + esc(course.name) + '"></span></label>' +
+      '<h3 class="show-head">Hvor skal den ligge?</h3><div class="share-halls">' +
+      halls.map((h) => choice(h.id, h.name, size(h), h === same)).join('') +
+      choice('new', 'Ny ridehal: ' + from.name, size(from), !same) + '</div>' +
+      '<p class="ctx-warn" data-share-warn hidden></p>';
+    const chosen = () => body.querySelector('[name="shareHall"]:checked').value;
+    const updateWarn = () => {
+      const value = chosen();
+      const hall = value === 'new' ? from : Store.getHall(value);
+      const out = (p) => p.x < 0 || p.y < 0 || p.x > hall.length || p.y > hall.width;
+      const n = course.obstacles.filter(out).length + course.decorations.filter(out).length +
+        Store.FREE_MARKERS.filter((k) => course.markers[k] && out(course.markers[k])).length;
+      const warn = body.querySelector('[data-share-warn]');
+      warn.hidden = !n;
+      warn.textContent = n ? 'Banen er lavet til ' + size(from) + '. ' + n + (n === 1 ? ' ting kommer' : ' ting kommer') + ' til at ligge uden for denne hal, men de kan flyttes bagefter.' : '';
+    };
+    body.addEventListener('change', updateWarn);
+    updateWarn();
+    const result = await UI.openDialog({
+      title: 'Du har fået en bane',
+      sheet: true,
+      className: 'show-dlg',
+      body,
+      actions: [
+        { label: 'Gem banen', kind: 'primary', value: () => ({ hall: chosen(), name: body.querySelector('[data-share-name]').value.trim() }) },
+        { label: 'Annullér', kind: 'ghost', value: null },
+      ],
+    });
+    if (!result) {
+      leaveShared('#/');
+      return;
+    }
+    let hall;
+    if (result.hall === 'new') {
+      hall = Store.createHall(from.name, from.length, from.width);
+      if (from.logo) hall.logo = from.logo;
+    } else {
+      hall = Store.getHall(result.hall);
+    }
+    const saved = Store.addSharedCourse(hall, course, result.name);
+    toast('Banen er gemt i ' + hall.name + '.');
+    leaveShared('#/bane/' + hall.id + '/' + saved.id);
+  }
+
   function renderHome() {
     const halls = Store.state.halls;
     let list;
@@ -161,7 +225,13 @@
     }
     app.innerHTML = '<div class="page">' + brandHeader('<a class="iconbtn" href="#/indstillinger" aria-label="Indstillinger" title="Indstillinger">' + icon('settings') + '</a>') +
       '<main class="content">' + list + '<p class="footnote">Banerne gemmes kun i denne browser på denne enhed. De synkroniseres ikke mellem telefon og computer.</p>' +
-      '<div class="panel-actions"><button type="button" class="btn secondary" data-a="getLatest">' + icon('download') + '<span>Hent nyeste version</span></button></div></main></div>';
+      '<div class="panel-actions"><label class="btn secondary">' + icon('upload') + '<span>Importér bane</span><input type="file" hidden data-a="importCourse"></label>' +
+      '<button type="button" class="btn secondary" data-a="getLatest">' + icon('download') + '<span>Hent nyeste version</span></button></div></main></div>';
+    app.querySelector('[data-a="importCourse"]').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (file) Share.readFile(file).then(openShared).catch((err) => toast(err.message, 'error'));
+    });
     app.querySelectorAll('[data-a="newHall"]').forEach((b) => b.addEventListener('click', createHallFlow));
     app.querySelector('[data-a="getLatest"]').addEventListener('click', (e) => getLatestVersion(e.currentTarget));
   }
@@ -377,6 +447,14 @@
     const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
     window.scrollTo(0, 0);
     document.body.classList.toggle('in-editor', parts[0] === 'bane');
+    if (parts[0] === 'del') {
+      renderHome();
+      Share.decode(parts[1]).then(openShared).catch((err) => {
+        leaveShared('#/');
+        toast(err.message, 'error');
+      });
+      return;
+    }
     if (parts[0] === 'hal') {
       const hall = Store.getHall(parts[1]);
       if (hall) { renderHall(hall); return; }
@@ -425,7 +503,7 @@
       toast(Store.issue, 'error');
       Store.clearIssue();
     }
-    if (!Store.settings.introSeen) showIntro();
+    if (!Store.settings.introSeen && location.hash.indexOf('#/del/') !== 0) showIntro();
     /* Gør appen installerbar og brugbar uden net. Virker kun over https eller localhost. */
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
       navigator.serviceWorker.register('sw.js').catch(() => { /* Appen virker også uden */ });

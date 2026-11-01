@@ -22,6 +22,7 @@ Data ligger i browserens `localStorage` under nøglen `grejsBygSpring_v1`. Data 
 | `js/store.js` | Datamodel, validering, lagring og backup |
 | `js/scene.js` | Tegner hal, spring, markeringer og rideveje som SVG |
 | `js/route.js` | Foreslår en ridevej ud fra springenes numre og pile |
+| `js/share.js` | Deler en enkelt bane som link eller fil |
 | `js/exporter.js` | PNG og udskrift/PDF |
 | `js/editor.js` | Banebyggeren: gestik, værktøjer, fortryd og paneler |
 | `js/app.js` | Startside, ridehal, indstillinger og navigation |
@@ -39,4 +40,5 @@ Data ligger i browserens `localStorage` under nøglen `grejsBygSpring_v1`. Data 
 - PNG og udskrift bruger samme banekort (`Exporter.sheet`) med tegning og afstande. Afstandene gemmes i `distances` pr. strækning, f.eks. `"1|2": 14.5`, og strækningerne dannes ud fra springenes numre.
 - Pynt ligger i `decorations` (`tree`, `bush`, `flowers`) og tegnes under rideveje og spring. `Generer ridevej` kører uden om dem.
 - Print og PNG kan laves til træning eller stævne. Stævnearket (`Exporter.contestSheet`) bruger felterne i `course.show` og logoet i `hall.logo`, som kun er en lille PNG eller JPEG gemt som tekst.
+- En bane deles som et link (`#/del/...`). Banen ligger pakket i linket efter `#`, som ikke sendes til serveren. Logoet følger kun med, når banen sendes som fil. Modtaget data renses af `Store.cleanShared`, før det vises.
 - Ind og ud er to markeringer i data (`entrance` og `exit`). Som standard vises de som én samlet boks (`entrance.linked`), men de kan adskilles.
