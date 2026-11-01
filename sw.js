@@ -39,7 +39,9 @@ async function networkFirst(request) {
     if (response.ok) await cache.put(request, response.clone());
     return response;
   } catch (err) {
-    const hit = await cache.match(request, { ignoreSearch: true });
+    /* Knappen "Hent nyeste version" skal have besked, når filerne ikke kunne hentes. */
+    if (request.cache === 'reload') throw err;
+    const hit =await cache.match(request, { ignoreSearch: true });
     if (hit) return hit;
     if (request.mode === 'navigate') return cache.match('index.html');
     throw err;

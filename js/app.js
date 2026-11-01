@@ -143,6 +143,8 @@
     return '<svg viewBox="0 0 32 32" width="32" height="32"><rect width="32" height="32" rx="8" fill="#1f4d3a"/><path d="M12 7v18M20 7v18" stroke="#fff" stroke-width="3"/><path d="M12 7v4M20 7v4M12 15v4M20 15v4" stroke="#111" stroke-width="3"/><path d="M5 16h19M20.5 12l5.5 4-5.5 4" fill="none" stroke="#ff4d52" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
 
+  const UPDATED_FLAG = 'grejsBaneByg_opdateret';
+
   function renderHome() {
     const halls = Store.state.halls;
     let list;
@@ -158,8 +160,40 @@
         }).join('') + '</div>';
     }
     app.innerHTML = '<div class="page">' + brandHeader('<a class="iconbtn" href="#/indstillinger" aria-label="Indstillinger" title="Indstillinger">' + icon('settings') + '</a>') +
-      '<main class="content">' + list + '<p class="footnote">Banerne gemmes kun i denne browser på denne enhed. De synkroniseres ikke mellem telefon og computer.</p></main></div>';
+      '<main class="content">' + list + '<p class="footnote">Banerne gemmes kun i denne browser på denne enhed. De synkroniseres ikke mellem telefon og computer.</p>' +
+      '<div class="panel-actions"><button type="button" class="btn secondary" data-a="getLatest">' + icon('download') + '<span>Hent nyeste version</span></button></div></main></div>';
     app.querySelectorAll('[data-a="newHall"]').forEach((b) => b.addEventListener('click', createHallFlow));
+    app.querySelector('[data-a="getLatest"]').addEventListener('click', (e) => getLatestVersion(e.currentTarget));
+  }
+
+  /* Henter alle appens filer forbi browserens cache og genindlæser. Banerne i localStorage røres ikke. */
+  async function getLatestVersion(btn) {
+    const label = btn.querySelector('span');
+    const text = label.textContent;
+    btn.disabled = true;
+    label.textContent = 'Henter…';
+    Store.flush();
+    try {
+      if (navigator.onLine === false) throw new Error('offline');
+      if (location.protocol !== 'file:') {
+        const files = ['./', 'index.html', 'sw.js'].concat(
+          Array.from(document.scripts, (s) => s.src),
+          Array.from(document.querySelectorAll('link[rel="stylesheet"], link[rel="manifest"]'), (l) => l.href)
+        ).filter(Boolean);
+        await Promise.all(files.map((url) => fetch(url, { cache: 'reload' }).then((r) => {
+          if (!r.ok) throw new Error(url);
+        })));
+        const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+        if (reg) await reg.update();
+      }
+      try { sessionStorage.setItem(UPDATED_FLAG, '1'); } catch (err) { /* Kun beskeden går tabt */ }
+      location.reload();
+    } catch (err) {
+      /* Uden net bliver den nuværende version stående, så appen stadig virker. */
+      btn.disabled = false;
+      label.textContent = text;
+      toast('Den nyeste version kunne ikke hentes. Tjek din internetforbindelse.', 'error');
+    }
   }
 
   /* Eksempel til den tomme startside, så man kan se, hvad appen laver. */
@@ -381,6 +415,12 @@
       if (area) area.remove();
     });
     route();
+    try {
+      if (sessionStorage.getItem(UPDATED_FLAG)) {
+        sessionStorage.removeItem(UPDATED_FLAG);
+        toast('Du har nu den nyeste version.');
+      }
+    } catch (err) { /* Kun beskeden går tabt */ }
     if (Store.issue) {
       toast(Store.issue, 'error');
       Store.clearIssue();
