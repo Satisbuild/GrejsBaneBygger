@@ -337,11 +337,24 @@ a.card:active { transform: scale(.995); }
 }
 
 /* ---------- Udskrift: kun banen ---------- */
+/* Afstande mellem spring */
+.dist-intro { color: var(--ink-2); font-size: 15px; margin-bottom: 10px; }
+.dist-list { display: flex; flex-direction: column; gap: 8px; }
+.dist-row { display: grid; grid-template-columns: minmax(92px, 1fr) minmax(96px, 1.2fr) auto; align-items: center; gap: 8px; }
+.dist-row.bad .field-input { border-color: var(--red); }
+.dist-leg { font-weight: 700; font-size: 16px; overflow-wrap: anywhere; }
+.dist-leg i { font-style: normal; color: var(--red); padding: 0 2px; }
+.dist-approx { min-width: 74px; min-height: 46px; padding: 0 10px; border-radius: 11px; background: #f3f2ec; color: var(--ink-2); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.dist-note { color: var(--ink-3); font-size: 13px; line-height: 1.35; margin-top: 2px; }
+.dist-dlg .form-err { margin-top: 10px; }
+.dist-dlg .linkbtn { margin-top: 6px; }
+.dist-dlg .dlg-actions { position: sticky; bottom: 0; background: #fff; border-top: 1px solid var(--line); }
+
 #printArea { display: none; }
 @media print {
   body > *:not(#printArea) { display: none !important; }
   body { position: static; overflow: visible; background: #fff; }
   #printArea { display: block; }
-  #printArea svg { width: 100%; height: auto; max-height: 96vh; }
-  @page { margin: 10mm; }
+  #printArea svg { display: block; width: 100%; height: auto; max-height: 96vh; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @page { size: landscape; margin: 10mm; }
 }

@@ -8,13 +8,14 @@
   const VERSION = 1;
   const SAVE_DELAY = 200;
 
-  const OBSTACLE_TYPES = ['vertical', 'oxer', 'pole'];
+  const OBSTACLE_TYPES = ['vertical', 'oxer', 'triple', 'pole'];
   const SIDES = ['top', 'right', 'bottom', 'left'];
   const PATH_STYLES = ['solid', 'dashed', 'dotted'];
   const PATH_COLORS = ['#5f6368', '#111111', '#1560bd', '#1a7f4b', '#d9480f'];
   const OBSTACLE_DEFAULTS = {
     vertical: { width: 3.5, depth: 0 },
     oxer: { width: 3.5, depth: 1.4 },
+    triple: { width: 3.5, depth: 1.8 },
     pole: { width: 3, depth: 0 },
   };
 
@@ -79,7 +80,7 @@
       label2: o.label2 && isNum(o.label2.x) && isNum(o.label2.y) ? { x: round2(o.label2.x), y: round2(o.label2.y) } : null,
       label3: o.label3 && isNum(o.label3.x) && isNum(o.label3.y) ? { x: round2(o.label3.x), y: round2(o.label3.y) } : null,
       width: num(o.width, def.width, 0.5, 15),
-      depth: o.type === 'oxer' ? num(o.depth, def.depth, 0.3, 6) : 0,
+      depth: def.depth ? num(o.depth, def.depth, 0.3, 6) : 0,
       label: hasLabel ? { x: round2(o.label.x), y: round2(o.label.y) } : null,
     };
   }
@@ -137,6 +138,16 @@
     };
   }
 
+  /* Afstande i meter pr. strækning, f.eks. { "1|2": 14.5 }. Nøglerne er springenes numre. */
+  function normDistances(d) {
+    const out = {};
+    if (!d || typeof d !== 'object') return out;
+    Object.keys(d).slice(0, 200).forEach((k) => {
+      if (k.length <= 40 && isNum(d[k]) && d[k] > 0 && d[k] <= 999) out[k] = round2(d[k]);
+    });
+    return out;
+  }
+
   function normCourse(c, seen) {
     if (!c || typeof c !== 'object') return null;
     const inner = new Set();
@@ -155,6 +166,7 @@
         exit: normEdgeMarker(m.exit, inner),
       },
       paths: (Array.isArray(c.paths) ? c.paths : []).map((p) => normPath(p, inner)).filter(Boolean),
+      distances: normDistances(c.distances),
       view: normView(c.view),
     };
   }
@@ -262,6 +274,7 @@
       obstacles: [],
       markers: emptyMarkers(),
       paths: [],
+      distances: {},
       view: defaultView(state.settings),
     };
   }

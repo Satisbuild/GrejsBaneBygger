@@ -32,6 +32,8 @@ Data ligger i browserens `localStorage` under nøglen `grejsBygSpring_v1`. Data 
 - Alle koordinater gemmes i meter, så placeringer er uafhængige af skærm og zoom.
 - Et spring gemmer kun `rotation`. Den røde pil tegnes inde i springets roterede gruppe og kan derfor ikke komme ud af trit med springet.
 - En lang hal vises automatisk på højkant, når det giver mere plads, f.eks. på en telefon i portræt. Det ændrer kun visningen, ikke de gemte data.
+- Springtyperne er `vertical`, `oxer`, `triple` (Triple Bar med tre parallelle dele) og `pole`. For oxer og triple bar er `depth` afstanden mellem de yderste dele.
 - Et spring kan have et ekstra nummer i rød ring (`number2`) og pil begge veje (`bothWays`). Med pil begge veje kan det også have et nummer til den anden retning (`number3`). En bane kan desuden have et samlet skift `MÅL/START` (`markers.change`) ud over START og MÅL.
 - START, MÅL og MÅL/START kan drejes (`rotation`) og ændre størrelse (`size`, i procent). En markering uden `rotation` står altid opret; en drejet markering følger hallen.
+- PNG og udskrift bruger samme banekort (`Exporter.sheet`) med tegning og afstande. Afstandene gemmes i `distances` pr. strækning, f.eks. `"1|2": 14.5`, og strækningerne dannes ud fra springenes numre.
 - Ind og ud er to markeringer i data (`entrance` og `exit`). Som standard vises de som én samlet boks (`entrance.linked`), men de kan adskilles.

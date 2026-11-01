@@ -36,6 +36,7 @@ window.GBS = window.GBS || {};
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 114 2c-1 .7-1.5 1.2-1.5 2.5M12 17v.1"/>',
     vertical: '<path d="M12 2v20" stroke-width="4" stroke-linecap="butt"/><path d="M12 8.5v2M12 13.5v2" stroke="#fff" stroke-width="2.6" stroke-linecap="butt"/><path d="M5 12h14M16 9l3.5 3-3.5 3" stroke="#d81f26"/>',
     oxer: '<path d="M8.5 2v20M15 2v20" stroke-width="3.4" stroke-linecap="butt"/><path d="M8.5 7.5v2M8.5 14.5v2M15 7.5v2M15 14.5v2" stroke="#fff" stroke-width="2.2" stroke-linecap="butt"/><path d="M2.5 12h19M18.5 9l3.5 3-3.5 3" stroke="#d81f26"/>',
+    triple: '<path d="M6 2v20M12 2v20M18 2v20" stroke-width="3" stroke-linecap="butt"/><path d="M6 7.5v2M6 14.5v2M12 7.5v2M12 14.5v2M18 7.5v2M18 14.5v2" stroke="#fff" stroke-width="1.9" stroke-linecap="butt"/><path d="M2.5 12h19M18.5 9l3.5 3-3.5 3" stroke="#d81f26"/>',
     pole: '<path d="M12 3v18" stroke-width="2.2"/><path d="M5 12h14M16 9l3.5 3-3.5 3" stroke="#d81f26"/>',
     start: '<path d="M6 21V4"/><path d="M6 4l12 4.5L6 13z" fill="#f2ab00"/>',
     finish: '<path d="M6 21V4"/><path d="M6 4h13v9H6z"/><path d="M6 8.5h13M10.3 4v9M14.6 4v9"/>',
@@ -47,6 +48,7 @@ window.GBS = window.GBS || {};
     route: '<path d="M6 19h9a3.5 3.5 0 000-7H9a3.5 3.5 0 010-7h9"/>',
     smooth: '<path d="M4 18C6 6 18 18 20 6"/>',
     grid: '<path d="M4 4h16v16H4zM4 12h16M12 4v16"/>',
+    ruler: '<path d="M3 16L16 3l5 5L8 21z"/><path d="M7.5 11.5l2 2M10.5 8.5l2.5 2.5M13.5 5.5l2 2"/>',
   };
 
   function icon(name) {

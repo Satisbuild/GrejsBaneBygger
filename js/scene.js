@@ -58,7 +58,10 @@
     const u = c.u;
     const w = o.width * c.s;
     const t = (o.type === 'pole' ? 0.18 : 0.3) * u;
-    const d = o.type === 'oxer' ? Math.max(o.depth * c.s, t * 2.4) : 0;
+    /* d er afstanden mellem de yderste dele. En triple bar skal have plads til sin midterste del. */
+    let d = 0;
+    if (o.type === 'oxer') d = Math.max(o.depth * c.s, t * 2.4);
+    if (o.type === 'triple') d = Math.max(o.depth * c.s, t * 4);
     const railHalfX = d / 2 + t / 2;
     const arrow = o.showArrow !== false;
     return {
@@ -110,6 +113,8 @@
         out += '<line x1="' + f(-g.d / 2) + '" y1="' + f(y - Math.sign(y) * g.t * 0.2) + '" x2="' + f(g.d / 2) + '" y2="' + f(y - Math.sign(y) * g.t * 0.2) + '" stroke="#111" stroke-width="' + f(g.t * 0.16) + '"/>';
       });
       out += rail(-g.d / 2, g, o.type) + rail(g.d / 2, g, o.type);
+    } else if (o.type === 'triple') {
+      out += rail(-g.d / 2, g, o.type) + rail(0, g, o.type) + rail(g.d / 2, g, o.type);
     } else {
       out += rail(0, g, o.type);
     }
@@ -245,6 +250,13 @@
     return { side: opts[0].side, pos: Math.round(opts[0].pos * 10) / 10 };
   }
 
+  /* Tekstens vinkel på kanten. På skærmens højre side læses den oppefra og ned,
+     så den er et spejlbillede af venstre side og ikke står på hovedet set fra banen. */
+  function edgeAngle(p, rot) {
+    const screenX = rot === 90 ? -p.oy : p.ox;
+    return readableAngle(p.angle, rot) + (screenX > 0 ? 180 : 0);
+  }
+
   function edgeGeom(kind, m, c) {
     const u = c.u;
     const pos = clamp(m.pos, 0, sideLength(c.hall, m.side));
@@ -257,7 +269,7 @@
       cy: p.y + p.oy * 1.45 * u,
       hw: linked ? 2.05 * u : (MARKER_TEXT[kind].length * 0.6 * fs + 0.9 * u) / 2,
       hh: linked ? 1 * u : 0.8 * u,
-      angle: readableAngle(p.angle, c.rot),
+      angle: edgeAngle(p, c.rot),
     };
   }
 

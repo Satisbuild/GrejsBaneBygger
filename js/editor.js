@@ -13,6 +13,7 @@
   const TILES = [
     { kind: 'vertical', label: 'Lodret', hint: 'Tryk på banen for at placere et lodret spring.' },
     { kind: 'oxer', label: 'Oxer', hint: 'Tryk på banen for at placere en oxer.' },
+    { kind: 'triple', label: 'Triple Bar', hint: 'Tryk på banen for at placere en triple bar.' },
     { kind: 'pole', label: 'Bom', hint: 'Tryk på banen for at placere en bom.' },
     { kind: 'start', label: 'Start', hint: 'Tryk på banen for at placere START.' },
     { kind: 'finish', label: 'Mål', hint: 'Tryk på banen for at placere MÅL.' },
@@ -20,7 +21,7 @@
     { kind: 'judge', label: 'Dommer', hint: 'Tryk ved en væg for at placere dommeren.' },
     { kind: 'gate', label: 'Ind/ud', hint: 'Tryk ved en væg for at placere ind- og udgang.' },
   ];
-  const TYPE_NAMES = { vertical: 'Lodret', oxer: 'Oxer', pole: 'Bom' };
+  const TYPE_NAMES = { vertical: 'Lodret', oxer: 'Oxer', triple: 'Triple Bar', pole: 'Bom' };
   const MARKER_NAMES = { start: 'START', finish: 'MÅL', change: 'MÅL/START', judge: 'Dommer', entrance: 'Ind', exit: 'Ud' };
   const STEPS = [[0, 'Fri'], [5, '5°'], [15, '15°'], [45, '45°'], [90, '90°']];
 
@@ -88,7 +89,7 @@
 
     /* ---------- Fortryd / gentag ---------- */
 
-    const snapshot = () => JSON.stringify({ obstacles: course.obstacles, markers: course.markers, paths: course.paths });
+    const snapshot = () => JSON.stringify({ obstacles: course.obstacles, markers: course.markers, paths: course.paths, distances: course.distances || {} });
     let present = snapshot();
     const undoStack = [];
     const redoStack = [];
@@ -110,6 +111,7 @@
       course.obstacles = d.obstacles;
       course.markers = d.markers;
       course.paths = d.paths;
+      course.distances = d.distances;
       present = json;
       if (selection && !findSelected()) selection = null;
       Store.touchCourse(course);
@@ -1202,7 +1204,7 @@
         stepper('rotation', 'Præcis vinkel', o.rotation, '°') +
         '<div class="row-field"><span class="row-label">Drej i trin</span>' + seg('rotationStep', STEPS, view.rotationStep) + '</div>' +
         stepper('width', 'Bredde', o.width, 'm');
-      if (o.type === 'oxer') more += stepper('depth', 'Afstand mellem dele', o.depth, 'm');
+      if (o.type === 'oxer' || o.type === 'triple') more += stepper('depth', o.type === 'triple' ? 'Dybde (første til sidste)' : 'Afstand mellem dele', o.depth, 'm');
       more += '<div class="row-field"><span class="row-label">Ekstra nr. i rød ring</span><input class="small-input" data-field="number2" value="' + esc(o.number2) + '" maxlength="8" autocomplete="off" enterkeyhint="done" placeholder="–" aria-label="Ekstra nummer"></div>';
       more += '<div class="row-field"><span class="row-label">Pil begge veje</span>' + toggle('bothWays', o.bothWays) + '</div>';
       if (o.bothWays) more += '<div class="row-field"><span class="row-label">Nr. den anden vej</span><input class="small-input" data-field="number3" value="' + esc(o.number3) + '" maxlength="8" autocomplete="off" autocapitalize="characters" enterkeyhint="done" placeholder="–" aria-label="Nummer den anden vej"></div>';
@@ -1533,6 +1535,81 @@
       });
     }
 
+    /* Afstandene skrives ind pr. strækning. Forslaget er målt på tegningen og kan bruges med et tryk. */
+    function openDistances() {
+      const legs = Exporter.legs(course);
+      if (!legs.length) {
+        UI.openDialog({
+          title: 'Afstande mellem spring',
+          body: '<p>Giv springene numre først. Så laver appen selv en række for hver strækning: 1 → 2, 2 → 3 og så videre.</p>',
+          actions: [{ label: 'OK', value: null, kind: 'primary' }],
+        });
+        return;
+      }
+      const saved = course.distances || {};
+      const rows = legs.map((l) => {
+        const value = saved[l.key] != null ? fmtNum(saved[l.key], 2) : '';
+        return '<div class="dist-row">' +
+          '<span class="dist-leg">' + esc(l.from) + ' <i>→</i> ' + esc(l.to) + '</span>' +
+          '<label class="field-input"><input data-key="' + esc(l.key) + '" value="' + esc(value) + '" inputmode="decimal" enterkeyhint="next" autocomplete="off" aria-label="Afstand fra ' + esc(l.from) + ' til ' + esc(l.to) + ' i meter"><em>m</em></label>' +
+          '<button type="button" class="dist-approx" data-approx="' + esc(fmtNum(l.approx, 1)) + '" aria-label="Brug ' + esc(fmtNum(l.approx, 1)) + ' meter">ca. ' + esc(fmtNum(l.approx, 1)) + '</button>' +
+          '</div>';
+      }).join('');
+      const fields = (d) => Array.from(d.querySelectorAll('[data-key]'));
+      const validate = (d) => {
+        let ok = true;
+        fields(d).forEach((input) => {
+          const v = input.value.trim() ? parseNum(input.value) : null;
+          const bad = v !== null && !(v > 0 && v <= 999);
+          input.closest('.dist-row').classList.toggle('bad', bad);
+          if (bad) ok = false;
+        });
+        d.querySelector('.form-err').hidden = ok;
+        return ok;
+      };
+      UI.openDialog({
+        title: 'Afstande mellem spring',
+        sheet: true,
+        className: 'dist-dlg',
+        body: '<p class="dist-intro">Skriv afstanden i meter. Tomme rækker kommer ikke med på print og billede.</p>' +
+          '<div class="dist-list">' + rows + '</div>' +
+          '<p class="form-err" hidden>Skriv afstandene som tal mellem 0 og 999, eller lad feltet stå tomt.</p>' +
+          '<button type="button" class="linkbtn" data-fill>Udfyld tomme med ca.-målene</button>' +
+          '<p class="dist-note">Ca.-målene er lige linjer på tegningen, midt i spring til midt i spring. Den ridevej, du måler på banen, er tit længere.</p>',
+        actions: [
+          { label: 'Gem afstande', kind: 'primary', validate, value: (d) => fields(d).map((i) => [i.dataset.key, i.value.trim() ? parseNum(i.value) : null]) },
+          { label: 'Annullér', kind: 'ghost', value: null },
+        ],
+        onOpen: (d) => {
+          d.addEventListener('click', (e) => {
+            const chip = e.target.closest('[data-approx]');
+            if (chip) chip.parentNode.querySelector('input').value = chip.dataset.approx;
+            if (e.target.closest('[data-fill]')) {
+              fields(d).filter((i) => !i.value.trim()).forEach((i) => { i.value = i.closest('.dist-row').querySelector('[data-approx]').dataset.approx; });
+            }
+          });
+          d.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' || !e.target.matches('[data-key]')) return;
+            e.preventDefault();
+            const all = fields(d);
+            const next = all[all.indexOf(e.target) + 1];
+            if (next) next.focus(); else e.target.blur();
+          });
+        },
+      }).then((values) => {
+        if (!values) return;
+        /* Værdier for numre, der ikke er på banen lige nu, bevares, så de er der igen efter en omnummerering. */
+        const next = Object.assign({}, course.distances);
+        values.forEach(([key, v]) => {
+          if (v === null) delete next[key];
+          else next[key] = Store.round2(v);
+        });
+        course.distances = next;
+        commit();
+        toast('Afstandene er gemt.');
+      });
+    }
+
     function openMenu() {
       const body = document.createElement('div');
       body.className = 'menu-body';
@@ -1545,6 +1622,7 @@
         '<div class="row-field col"><span class="row-label">Vis banen</span>' + seg('orientation', [['auto', 'Automatisk'], ['landscape', 'Liggende'], ['portrait', 'Stående']], view.orientation) + '</div>' +
         '<div class="row-field col"><span class="row-label">Drej i trin</span>' + seg('rotationStep', STEPS, view.rotationStep) + '</div>' +
         '<hr>' +
+        '<button type="button" class="menu-item" data-menu="distances">' + icon('ruler') + '<span>Afstande mellem spring</span></button>' +
         '<button type="button" class="menu-item" data-menu="png">' + icon('image') + '<span>Gem bane som billede (PNG)</span></button>' +
         '<button type="button" class="menu-item" data-menu="print">' + icon('print') + '<span>Udskriv eller gem som PDF</span></button>' +
         '<button type="button" class="menu-item" data-menu="rename">' + icon('edit') + '<span>Omdøb bane</span></button>' +
@@ -1580,7 +1658,9 @@
         if (!m) return;
         const action = m.dataset.menu;
         finish(null);
-        if (action === 'png') {
+        if (action === 'distances') {
+          openDistances();
+        } else if (action === 'png') {
           Exporter.exportPng(hall, course).then(() => toast('Billedet er gemt i dine overførsler.')).catch((err) => toast(err.message, 'error'));
         } else if (action === 'print') {
           Exporter.printCourse(hall, course);
