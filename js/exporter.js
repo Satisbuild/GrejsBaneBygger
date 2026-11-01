@@ -22,11 +22,12 @@
     const stops = [];
     const seen = new Set();
     course.obstacles.filter((o) => o.showNumber !== false).forEach((o) => {
-      [o.number, o.number2, o.bothWays ? o.number3 : ''].forEach((text) => {
-        String(text || '').split('/').map((s) => s.trim()).filter(Boolean).forEach((name) => {
+      ['number', 'number2', 'number3'].forEach((field) => {
+        if (field === 'number3' && !o.bothWays) return;
+        String(o[field] || '').split('/').map((s) => s.trim()).filter(Boolean).forEach((name) => {
           if (seen.has(name)) return;
           seen.add(name);
-          stops.push({ name, x: o.x, y: o.y });
+          stops.push({ name, x: o.x, y: o.y, o, field });
         });
       });
     });
@@ -157,5 +158,5 @@
     window.print();
   }
 
-  GBS.Exporter = { exportPng, printCourse, legs, sheet };
+  GBS.Exporter = { exportPng, printCourse, legs, sheet, courseStops };
 })(window.GBS);

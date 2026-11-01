@@ -13,6 +13,7 @@ const FILES = [
   'js/store.js',
   'js/scene.js',
   'js/exporter.js',
+  'js/route.js',
   'js/editor.js',
   'js/app.js',
   'icons/icon-192.png',

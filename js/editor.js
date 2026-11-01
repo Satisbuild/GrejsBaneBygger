@@ -5,7 +5,7 @@
 (function (GBS) {
   'use strict';
 
-  const { UI, Store, Scene, Exporter } = GBS;
+  const { UI, Store, Scene, Exporter, Route } = GBS;
   const { icon, esc, parseNum, fmtNum, clamp, toast } = UI;
 
   const SIDE_LAYOUT = '(min-width: 900px), (orientation: landscape) and (min-width: 640px) and (max-height: 520px)';
@@ -345,8 +345,10 @@
       } else if (selection.kind === 'path') {
         const pts = item.points.map((q) => toScreen(q.x, q.y));
         html += '<path d="' + Scene.pathD(pts, item.smooth) + '" fill="none" stroke="#1560bd" stroke-opacity=".28" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>';
-        if (item.mode === 'points' && pts.length <= 60) {
-          pts.forEach((q, i) => {
+        if (item.mode === 'points' && (item.auto || pts.length <= 60)) {
+          const show = item.auto ? autoHandles(item) : pts.map((q, i) => i);
+          show.forEach((i) => {
+            const q = pts[i];
             html += '<circle cx="' + q.x.toFixed(1) + '" cy="' + q.y.toFixed(1) + '" r="9" fill="#fff" stroke="#1560bd" stroke-width="3"/>';
             handles.push({ type: 'point', index: i, x: q.x, y: q.y });
           });
@@ -363,6 +365,23 @@
       return '<line x1="0" y1="' + bottom.toFixed(1) + '" x2="0" y2="' + hy.toFixed(1) + '" stroke="#1560bd" stroke-width="2"/>' +
         '<circle cx="0" cy="' + hy.toFixed(1) + '" r="15" fill="#1560bd" stroke="#fff" stroke-width="2.5"/>' +
         '<path transform="translate(0 ' + hy.toFixed(1) + ')" d="M-5.5 -2a6 6 0 1 1 1 5.5M-6.5 -6.5v4.5h4.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+    }
+
+    /* En foreslået ridevej har mange punkter. Kun hvert ca. 7. meter vises som håndtag. */
+    function autoHandles(path) {
+      const out = [];
+      let walked = Infinity;
+      const pins = path.pins || [];
+      path.points.forEach((q, i) => {
+        if (i) walked += Math.hypot(q.x - path.points[i - 1].x, q.y - path.points[i - 1].y);
+        if (pins.includes(i)) return; /* Springene har deres eget symbol; ruten bliver der */
+        const nearPin = pins.some((j) => Math.abs(j - i) < 3);
+        if (walked >= 7 && !nearPin) {
+          out.push(i);
+          walked = 0;
+        }
+      });
+      return out;
     }
 
     function selRect(x, y, hw, hh, deg, frame) {
@@ -567,7 +586,8 @@
         case 'pointmove': {
           const item = findSelected();
           if (item) {
-            item.points[gesture.index] = { x: Store.round2(w.x), y: Store.round2(w.y) };
+            if (item.auto) dragAutoPoint(item, w);
+            else item.points[gesture.index] = { x: Store.round2(w.x), y: Store.round2(w.y) };
             updateElement(selection);
             renderOverlay();
           }
@@ -590,6 +610,41 @@
       gesture.last = p;
     }
 
+    function nearestPoint(path, w) {
+      let best = 0;
+      let bestD = Infinity;
+      path.points.forEach((q, i) => {
+        const d = Math.hypot(q.x - w.x, q.y - w.y);
+        if (d < bestD) { best = i; bestD = d; }
+      });
+      return best;
+    }
+
+    /* Trækker i en foreslået ridevej: naboerne følger blødt med, så linjen ikke får et knæk.
+       Bevægelsen stopper ved punkterne på et spring, så resten af ruten bliver liggende. */
+    function dragAutoPoint(path, w) {
+      const reach = 9;
+      const orig = gesture.orig.points;
+      const i = gesture.index;
+      const dx = w.x - orig[i].x;
+      const dy = w.y - orig[i].y;
+      const pins = path.pins || [];
+      path.points[i] = { x: Store.round2(orig[i].x + dx), y: Store.round2(orig[i].y + dy) };
+      [-1, 1].forEach((side) => {
+        /* Falder helt til nul ved et spring, så linjen ikke får et knæk dér. */
+        let span = reach + 1;
+        for (let k = 1; k <= reach; k++) {
+          if (pins.includes(i + side * k)) { span = k; break; }
+        }
+        for (let k = 1; k < span; k++) {
+          const j = i + side * k;
+          if (j < 0 || j >= orig.length) break;
+          const weight = Math.cos(k * Math.PI / (2 * span)) ** 2;
+          path.points[j] = { x: Store.round2(orig[j].x + dx * weight), y: Store.round2(orig[j].y + dy * weight) };
+        }
+      });
+    }
+
     /* Første bevægelse ud over tærsklen: gør klar til træk. */
     function beginDrag() {
       if (gesture.type === 'press') {
@@ -600,7 +655,14 @@
         const item = findSelected();
         gesture.orig = JSON.parse(JSON.stringify(item));
         dock.classList.add('is-dragging');
+        /* En foreslået ridevej formes, hvor man tager fat, i stedet for at hele vejen flyttes. */
+        if (hit.kind === 'path' && item.auto) {
+          gesture.type = 'pointmove';
+          gesture.index = nearestPoint(item, gesture.startW);
+        }
       } else if (gesture.type === 'rotate' || gesture.type === 'pointmove') {
+        const item = findSelected();
+        if (item && item.auto) gesture.orig = JSON.parse(JSON.stringify(item));
         dock.classList.add('is-dragging');
       }
     }
@@ -814,6 +876,36 @@
       draftPoints = [];
       ghostPoint = null;
       renderAll();
+    }
+
+    /* Laver en ridevej ud fra springenes numre og pile. En tidligere foreslået ridevej erstattes. */
+    function generateRoute() {
+      const route = Route.generate(hall, course);
+      if (!route) {
+        showHint('Giv springene numre først, så ved appen, hvilken vej banen går.', false, 3200);
+        return;
+      }
+      draftPoints = [];
+      ghostPoint = null;
+      const d = view.draw;
+      const path = {
+        id: Store.uid('p'),
+        mode: 'points',
+        points: route.points,
+        style: d.style,
+        width: d.width,
+        color: d.color,
+        arrows: d.arrows,
+        smooth: true,
+        auto: true,
+        pins: route.pins,
+      };
+      course.paths = course.paths.filter((p) => !p.auto).concat(path);
+      commit();
+      setMode('select', { keepSelection: true });
+      selection = { kind: 'path', id: path.id };
+      renderAll();
+      showHint('Ridevejen er lavet. Træk i linjen, hvis du vil rette den.', false, 3500);
     }
 
     function removeLastPoint() {
@@ -1250,7 +1342,8 @@
     function drawPanel() {
       const d = view.draw;
       const points = d.mode === 'points';
-      let html = '<div class="draw-row">' +
+      let html = '<button type="button" class="btn primary route-btn" data-act="generateRoute">' + icon('wand') + '<span>Generer ridevej</span></button>' +
+        '<div class="draw-row">' +
         seg('drawMode', [['free', icon('free') + '<span>Frihånd</span>'], ['points', icon('points') + '<span>Punkter</span>']], d.mode) +
         '<button type="button" class="chip more-toggle ' + (drawStyleOpen ? 'open' : '') + '" data-act="drawStyle" aria-expanded="' + drawStyleOpen + '"><span class="draw-sample" style="border-top-color:' + esc(d.color) + ';border-top-style:' + d.style + '"></span><span>Stil</span>' + icon('chevron') + '</button>' +
         '</div>';
@@ -1340,6 +1433,12 @@
         case 'pointBack': removeLastPoint(); break;
         case 'pointDone': finishPoints(); break;
         case 'clearPaths': clearPaths(); break;
+        case 'distances': openDistances(); break;
+        case 'generateRoute':
+          /* Beregningen kan tage et par sekunder på en telefon, så vis først, at der sker noget. */
+          showHint('Laver ridevej…', true);
+          setTimeout(generateRoute, 30);
+          break;
         default:
       }
     }
@@ -1622,7 +1721,6 @@
         '<div class="row-field col"><span class="row-label">Vis banen</span>' + seg('orientation', [['auto', 'Automatisk'], ['landscape', 'Liggende'], ['portrait', 'Stående']], view.orientation) + '</div>' +
         '<div class="row-field col"><span class="row-label">Drej i trin</span>' + seg('rotationStep', STEPS, view.rotationStep) + '</div>' +
         '<hr>' +
-        '<button type="button" class="menu-item" data-menu="distances">' + icon('ruler') + '<span>Afstande mellem spring</span></button>' +
         '<button type="button" class="menu-item" data-menu="png">' + icon('image') + '<span>Gem bane som billede (PNG)</span></button>' +
         '<button type="button" class="menu-item" data-menu="print">' + icon('print') + '<span>Udskriv eller gem som PDF</span></button>' +
         '<button type="button" class="menu-item" data-menu="rename">' + icon('edit') + '<span>Omdøb bane</span></button>' +
@@ -1658,9 +1756,7 @@
         if (!m) return;
         const action = m.dataset.menu;
         finish(null);
-        if (action === 'distances') {
-          openDistances();
-        } else if (action === 'png') {
+        if (action === 'png') {
           Exporter.exportPng(hall, course).then(() => toast('Billedet er gemt i dine overførsler.')).catch((err) => toast(err.message, 'error'));
         } else if (action === 'print') {
           Exporter.printCourse(hall, course);
@@ -1834,6 +1930,7 @@
         '<button type="button" data-mode="select">' + icon('select') + '<span>Vælg/flyt</span></button>' +
         '<button type="button" data-mode="add">' + icon('add') + '<span>Tilføj</span></button>' +
         '<button type="button" data-mode="draw">' + icon('draw') + '<span>Tegn ridevej</span></button>' +
+        '<button type="button" data-act="distances">' + icon('ruler') + '<span>Afstande</span></button>' +
         '</nav><div class="ctx" hidden></div></aside>' +
         '</div></div>';
     }

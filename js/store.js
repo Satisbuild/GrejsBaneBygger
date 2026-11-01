@@ -113,6 +113,8 @@
       color: /^#[0-9a-f]{6}$/i.test(p.color) ? p.color : PATH_COLORS[0],
       arrows: p.arrows !== false,
       smooth: p.smooth !== false,
+      /* En foreslået ridevej: pins er de punkter, der ligger på et spring. */
+      ...(p.auto === true ? { auto: true, pins: (Array.isArray(p.pins) ? p.pins : []).filter((i) => Number.isInteger(i) && i >= 0 && i < points.length) } : {}),
     };
   }
 

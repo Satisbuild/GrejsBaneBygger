@@ -48,6 +48,7 @@ window.GBS = window.GBS || {};
     route: '<path d="M6 19h9a3.5 3.5 0 000-7H9a3.5 3.5 0 010-7h9"/>',
     smooth: '<path d="M4 18C6 6 18 18 20 6"/>',
     grid: '<path d="M4 4h16v16H4zM4 12h16M12 4v16"/>',
+    wand: '<path d="M5 19L16 8"/><path d="M14 6l4 4"/><path d="M19 3v3M17.5 4.5h3M6 5v3M4.5 6.5h3M19 15v3M17.5 16.5h3"/>',
     ruler: '<path d="M3 16L16 3l5 5L8 21z"/><path d="M7.5 11.5l2 2M10.5 8.5l2.5 2.5M13.5 5.5l2 2"/>',
   };
 

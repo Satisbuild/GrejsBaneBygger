@@ -21,6 +21,7 @@ Data ligger i browserens `localStorage` under nøglen `grejsBygSpring_v1`. Data 
 | `js/ui.js` | Ikoner, tal, beskeder og dialoger |
 | `js/store.js` | Datamodel, validering, lagring og backup |
 | `js/scene.js` | Tegner hal, spring, markeringer og rideveje som SVG |
+| `js/route.js` | Foreslår en ridevej ud fra springenes numre og pile |
 | `js/exporter.js` | PNG og udskrift/PDF |
 | `js/editor.js` | Banebyggeren: gestik, værktøjer, fortryd og paneler |
 | `js/app.js` | Startside, ridehal, indstillinger og navigation |
