@@ -108,10 +108,6 @@
     const g = obstacleGeom(o, c);
     let out = '';
     if (o.type === 'oxer') {
-      /* Tynde tværstreger binder de to dele sammen til ét spring. */
-      [-g.w / 2, g.w / 2].forEach((y) => {
-        out += '<line x1="' + f(-g.d / 2) + '" y1="' + f(y - Math.sign(y) * g.t * 0.2) + '" x2="' + f(g.d / 2) + '" y2="' + f(y - Math.sign(y) * g.t * 0.2) + '" stroke="#111" stroke-width="' + f(g.t * 0.16) + '"/>';
-      });
       out += rail(-g.d / 2, g, o.type) + rail(g.d / 2, g, o.type);
     } else if (o.type === 'triple') {
       out += rail(-g.d / 2, g, o.type) + rail(0, g, o.type) + rail(g.d / 2, g, o.type);
@@ -193,6 +189,56 @@
     }
     return '<g transform="translate(' + f(o.x) + ' ' + f(o.y) + ')">' +
       '<g transform="rotate(' + f(o.rotation) + ')">' + obstacleBody(o, c) + '</g>' + label + '</g>';
+  }
+
+  /* ---------- Pynt: træer, buske og blomster ---------- */
+
+  function decorBox(d, c) {
+    const w = d.diameter * c.s;
+    return d.type === 'flowers' ? { hw: w / 2, hh: w * 0.2 } : { hw: w / 2, hh: w / 2 };
+  }
+
+  /* Takket cirkel, set oppefra. */
+  function spikes(r, inner, count, fill, stroke, sw) {
+    const pts = [];
+    for (let i = 0; i < count * 2; i++) {
+      const a = Math.PI * i / count;
+      const q = i % 2 ? r * inner : r;
+      pts.push(f(Math.cos(a) * q) + ',' + f(Math.sin(a) * q));
+    }
+    return '<polygon points="' + pts.join(' ') + '" fill="' + fill + '"' + (stroke ? ' stroke="' + stroke + '" stroke-width="' + f(sw) + '" stroke-linejoin="round"' : '') + '/>';
+  }
+
+  function decorBody(d, c) {
+    const box = decorBox(d, c);
+    const r = box.hw;
+    if (d.type === 'tree') {
+      return spikes(r, 0.8, 18, '#2f9e44', '#1b6e2e', r * 0.03) +
+        '<g transform="rotate(10)">' + spikes(r * 0.68, 0.78, 14, '#23883a') + '</g>' +
+        '<g transform="rotate(4)">' + spikes(r * 0.36, 0.72, 9, '#17632a') + '</g>';
+    }
+    if (d.type === 'bush') {
+      let out = '';
+      for (let i = 0; i < 7; i++) {
+        const a = Math.PI * 2 * i / 7;
+        out += '<circle cx="' + f(Math.cos(a) * r * 0.58) + '" cy="' + f(Math.sin(a) * r * 0.58) + '" r="' + f(r * 0.42) + '" fill="#6aa84f" stroke="#4b8136" stroke-width="' + f(r * 0.03) + '"/>';
+      }
+      return out + '<circle r="' + f(r * 0.5) + '" fill="#6aa84f"/><circle r="' + f(r * 0.22) + '" fill="#8cc06f"/>';
+    }
+    /* Blomsterkasse: et aflangt bed, som kan stilles langs et spring. */
+    let out = '<rect x="' + f(-box.hw) + '" y="' + f(-box.hh) + '" width="' + f(box.hw * 2) + '" height="' + f(box.hh * 2) + '" rx="' + f(box.hh * 0.3) + '" fill="#8a5a33" stroke="#5e3d22" stroke-width="' + f(box.hh * 0.1) + '"/>';
+    const colors = ['#e64980', '#fcc419', '#f76707', '#e64980', '#fcc419'];
+    colors.forEach((color, i) => {
+      const x = (i - 2) * box.hw * 0.38;
+      const size = box.hh * 0.62;
+      out += '<g transform="translate(' + f(x) + ' 0)">' + spikes(size, 0.6, 6, '#2f9e44') +
+        '<circle r="' + f(size * 0.62) + '" fill="' + color + '"/><circle r="' + f(size * 0.24) + '" fill="#fff3bf"/></g>';
+    });
+    return out;
+  }
+
+  function decoration(d, c) {
+    return '<g transform="translate(' + f(d.x) + ' ' + f(d.y) + ') rotate(' + f(d.rotation) + ')">' + decorBody(d, c) + '</g>';
   }
 
   /* ---------- Start og mål ---------- */
@@ -393,7 +439,12 @@
   function pathStroke(p, c) {
     const sw = 0.2 * c.u * p.width;
     let dash = '';
-    if (p.style === 'dashed') dash = ' stroke-dasharray="' + f(0.95 * c.u) + ' ' + f(0.72 * c.u) + '"';
+    /* p.dash er stregernes længde fra 0 til 100; 10 er standarden. Mellemrummet vokser med tykkelsen,
+       ellers lukker de runde ender hullerne på en tyk linje. */
+    if (p.style === 'dashed') {
+      const length = (p.dash == null ? 10 : p.dash) * 0.095 * c.u;
+      dash = ' stroke-dasharray="' + f(length) + ' ' + f(Math.max(0.72 * c.u, sw + 0.45 * c.u)) + '"';
+    }
     if (p.style === 'dotted') dash = ' stroke-dasharray="0 ' + f(Math.max(sw * 2.1, 0.5 * c.u)) + '"';
     return ' fill="none" stroke="' + esc(p.color) + '" stroke-width="' + f(sw) + '" stroke-linecap="round" stroke-linejoin="round"' + dash;
   }
@@ -477,6 +528,7 @@
     };
     if (course) {
       course.obstacles.forEach((o) => add(o, 2 * c.u));
+      (course.decorations || []).forEach((d) => add(d, d.diameter * c.s / 2));
       GBS.Store.FREE_MARKERS.forEach((k) => {
         const m = course.markers[k];
         if (!m) return;
@@ -502,7 +554,7 @@
   function contents(hall, course, c, showGrid) {
     const markers = course ? markerKeys(course).map((k) => marker(k, course.markers[k], c)).join('') : '';
     return surface(hall, c, course, showGrid) +
-      (course ? course.paths.map((p) => path(p, c)).join('') + course.obstacles.map((o) => obstacle(o, c)).join('') : '') +
+      (course ? (course.decorations || []).map((d) => decoration(d, c)).join('') + course.paths.map((p) => path(p, c)).join('') + course.obstacles.map((o) => obstacle(o, c)).join('') : '') +
       markers;
   }
 
@@ -533,7 +585,7 @@
     FONT, BG, MARKER_TEXT,
     makeCtx, viewTransform, toView, fromView, chooseRot,
     obstacle, obstacleGeom, labelInfo, label2Info, label3Info, isFreeMarker,
-    freeMarkerSize, freeMarkerAngle, edgeGeom, marker, markerKeys, projectEdge, sidePoint, sideLength,
+    freeMarkerSize, freeMarkerAngle, decoration, decorBox, edgeGeom, marker, markerKeys, projectEdge, sidePoint, sideLength,
     path, pathD, pathStroke, flatten,
     surface, viewBounds, standalone,
   };

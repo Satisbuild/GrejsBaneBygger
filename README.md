@@ -37,4 +37,6 @@ Data ligger i browserens `localStorage` under nøglen `grejsBygSpring_v1`. Data 
 - Et spring kan have et ekstra nummer i rød ring (`number2`) og pil begge veje (`bothWays`). Med pil begge veje kan det også have et nummer til den anden retning (`number3`). En bane kan desuden have et samlet skift `MÅL/START` (`markers.change`) ud over START og MÅL.
 - START, MÅL og MÅL/START kan drejes (`rotation`) og ændre størrelse (`size`, i procent). En markering uden `rotation` står altid opret; en drejet markering følger hallen.
 - PNG og udskrift bruger samme banekort (`Exporter.sheet`) med tegning og afstande. Afstandene gemmes i `distances` pr. strækning, f.eks. `"1|2": 14.5`, og strækningerne dannes ud fra springenes numre.
+- Pynt ligger i `decorations` (`tree`, `bush`, `flowers`) og tegnes under rideveje og spring. `Generer ridevej` kører uden om dem.
+- Print og PNG kan laves til træning eller stævne. Stævnearket (`Exporter.contestSheet`) bruger felterne i `course.show` og logoet i `hall.logo`, som kun er en lille PNG eller JPEG gemt som tekst.
 - Ind og ud er to markeringer i data (`entrance` og `exit`). Som standard vises de som én samlet boks (`entrance.linked`), men de kan adskilles.

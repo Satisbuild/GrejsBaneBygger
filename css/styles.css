@@ -293,7 +293,7 @@ a.card:active { transform: scale(.995); }
 
 .menu-body { display: flex; flex-direction: column; }
 .menu-body hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 8px 0; }
-.menu-body input[type="range"] { width: 100%; height: 36px; accent-color: var(--forest); }
+.menu-body input[type="range"], .ctx input[type="range"] { width: 100%; height: 36px; accent-color: var(--forest); }
 .menu-item { display: flex; align-items: center; gap: 12px; min-height: 48px; font-weight: 550; text-align: left; border-radius: 10px; padding: 0 6px; }
 .menu-item:hover { background: #f3f2ec; }
 .menu-item.danger { color: var(--red); }
@@ -338,6 +338,29 @@ a.card:active { transform: scale(.995); }
 }
 
 /* ---------- Udskrift: kun banen ---------- */
+/* Valg af træning eller stævne */
+.out-options { display: flex; flex-direction: column; gap: 10px; padding-bottom: 14px; }
+.out-option { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 76px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; text-align: left; }
+.out-option:hover { border-color: var(--forest); background: var(--forest-tint); }
+.out-option .ic { width: 30px; height: 30px; color: var(--forest); }
+.out-option strong { display: block; font-size: 17px; }
+.out-option small { display: block; color: var(--ink-2); font-size: 14px; line-height: 1.3; }
+
+/* Stævneark */
+.show-preview { background: #fff; border: 1.5px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 12px; }
+.show-preview svg { display: block; width: 100%; height: auto; }
+.show-logo { display: flex; align-items: center; gap: 12px; }
+.show-logo-img { flex: none; width: 72px; height: 72px; display: grid; place-items: center; border: 1.5px dashed var(--line); border-radius: 12px; color: var(--ink-3); overflow: hidden; background: #fff; }
+.show-logo-img img { max-width: 100%; max-height: 100%; display: block; }
+.show-logo-btns { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.show-logo-btns .btn { cursor: pointer; }
+.show-logo-btns [hidden] { display: none; }
+.show-note { color: var(--ink-3); font-size: 13px; line-height: 1.35; margin-top: 8px; }
+.show-head { font-size: 16px; margin: 16px 0 8px; }
+.show-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.show-toggle { margin-top: 12px; }
+.show-dlg .dlg-actions { position: sticky; bottom: 0; background: #fff; border-top: 1px solid var(--line); }
+
 /* Afstande mellem spring */
 .dist-intro { color: var(--ink-2); font-size: 15px; margin-bottom: 10px; }
 .dist-list { display: flex; flex-direction: column; gap: 8px; }

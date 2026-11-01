@@ -10,6 +10,8 @@
 
   const SIDE_LAYOUT = '(min-width: 900px), (orientation: landscape) and (min-width: 640px) and (max-height: 520px)';
   const HISTORY_LIMIT = 150;
+  const WIDTH_PER_STEP_INV = 2.5;
+  const LOGO_MAX = 480; /* Pixels på logoets længste led */
   const TILES = [
     { kind: 'vertical', label: 'Lodret', hint: 'Tryk på banen for at placere et lodret spring.' },
     { kind: 'oxer', label: 'Oxer', hint: 'Tryk på banen for at placere en oxer.' },
@@ -20,8 +22,12 @@
     { kind: 'change', label: 'Mål/start', hint: 'Tryk på banen for at placere et skift mellem mål og start.' },
     { kind: 'judge', label: 'Dommer', hint: 'Tryk ved en væg for at placere dommeren.' },
     { kind: 'gate', label: 'Ind/ud', hint: 'Tryk ved en væg for at placere ind- og udgang.' },
+    { kind: 'tree', label: 'Træ', hint: 'Tryk på banen for at placere et træ.' },
+    { kind: 'bush', label: 'Busk', hint: 'Tryk på banen for at placere en busk.' },
+    { kind: 'flowers', label: 'Blomster', hint: 'Tryk på banen for at placere en blomsterkasse.' },
   ];
   const TYPE_NAMES = { vertical: 'Lodret', oxer: 'Oxer', triple: 'Triple Bar', pole: 'Bom' };
+  const DECOR_NAMES = { tree: 'Træ', bush: 'Busk', flowers: 'Blomster' };
   const MARKER_NAMES = { start: 'START', finish: 'MÅL', change: 'MÅL/START', judge: 'Dommer', entrance: 'Ind', exit: 'Ud' };
   const STEPS = [[0, 'Fri'], [5, '5°'], [15, '15°'], [45, '45°'], [90, '90°']];
 
@@ -74,6 +80,7 @@
     const worldG = $('[data-world]');
     const layers = {
       surface: $('[data-layer="surface"]'),
+      decorations: $('[data-layer="decorations"]'),
       paths: $('[data-layer="paths"]'),
       obstacles: $('[data-layer="obstacles"]'),
       markers: $('[data-layer="markers"]'),
@@ -89,7 +96,7 @@
 
     /* ---------- Fortryd / gentag ---------- */
 
-    const snapshot = () => JSON.stringify({ obstacles: course.obstacles, markers: course.markers, paths: course.paths, distances: course.distances || {} });
+    const snapshot = () => JSON.stringify({ obstacles: course.obstacles, markers: course.markers, paths: course.paths, distances: course.distances || {}, decorations: course.decorations || [] });
     let present = snapshot();
     const undoStack = [];
     const redoStack = [];
@@ -112,6 +119,7 @@
       course.markers = d.markers;
       course.paths = d.paths;
       course.distances = d.distances;
+      course.decorations = d.decorations;
       present = json;
       if (selection && !findSelected()) selection = null;
       Store.touchCourse(course);
@@ -241,6 +249,7 @@
 
     function renderScene() {
       renderSurface();
+      layers.decorations.innerHTML = decorations().map((d) => wrap(d.id, Scene.decoration(d, ctx))).join('');
       layers.paths.innerHTML = course.paths.map((p) => wrap(p.id, Scene.path(p, ctx))).join('');
       layers.obstacles.innerHTML = course.obstacles.map((o) => wrap(o.id, Scene.obstacle(o, ctx))).join('');
       layers.markers.innerHTML = Scene.markerKeys(course).map((k) => wrap(k, Scene.marker(k, course.markers[k], ctx))).join('');
@@ -260,6 +269,10 @@
         const p = course.paths.find((q) => q.id === sel.id);
         const g = layers.paths.querySelector('[data-el="' + sel.id + '"]');
         if (p && g) g.innerHTML = Scene.path(p, ctx);
+      } else if (sel.kind === 'decor') {
+        const d = decorations().find((q) => q.id === sel.id);
+        const g = layers.decorations.querySelector('[data-el="' + sel.id + '"]');
+        if (d && g) g.innerHTML = Scene.decoration(d, ctx);
       }
     }
 
@@ -278,7 +291,7 @@
       const draw = view.draw;
       const pts = ghostPoint ? draftPoints.concat([ghostPoint]) : draftPoints;
       if (pts.length) {
-        const p = { points: pts, smooth: draw.smooth, style: draw.style, width: draw.width, color: draw.color, arrows: false };
+        const p = { points: pts, smooth: draw.smooth, style: draw.style, width: draw.width, dash: draw.dash, color: draw.color, arrows: false };
         html += '<path d="' + Scene.pathD(pts, draw.smooth) + '"' + Scene.pathStroke(p, ctx) + '/>';
         pts.forEach((q) => {
           html += '<circle cx="' + q.x + '" cy="' + q.y + '" r="' + r + '" fill="#fff" stroke="' + esc(draw.color) + '" stroke-width="' + (r * 0.5) + '"/>';
@@ -288,8 +301,14 @@
       updateHistoryButtons();
     }
 
+    function decorations() {
+      if (!course.decorations) course.decorations = [];
+      return course.decorations;
+    }
+
     function findSelected() {
       if (!selection) return null;
+      if (selection.kind === 'decor') return decorations().find((d) => d.id === selection.id) || null;
       if (selection.kind === 'obstacle') return course.obstacles.find((o) => o.id === selection.id) || null;
       if (selection.kind === 'path') return course.paths.find((p) => p.id === selection.id) || null;
       return course.markers[selection.key] || null;
@@ -328,6 +347,13 @@
           const c = toScreen(item.x + l3.dx, item.y + l3.dy);
           html += selRect(c.x, c.y, l3.hw * s + 3, l3.hh * s + 3, 0, frame);
         }
+      } else if (selection.kind === 'decor') {
+        const box = Scene.decorBox(item, ctx);
+        const c = toScreen(item.x, item.y);
+        const a = item.rotation + rot;
+        html += selRect(c.x, c.y, box.hw * cam.s + 4, box.hh * cam.s + 4, a, frame) +
+          '<g transform="translate(' + c.x.toFixed(1) + ' ' + c.y.toFixed(1) + ') rotate(' + a.toFixed(1) + ')">' +
+          rotateKnob(c, a, box.hh * cam.s + 4) + '</g>';
       } else if (selection.kind === 'marker') {
         const key = selection.key;
         if (Scene.isFreeMarker(key)) {
@@ -415,9 +441,14 @@
       const consider = (hit, d) => {
         if (d > tol) return;
         const isSel = selection && selection.kind === hit.kind && selection.id === hit.id && selection.key === hit.key;
-        const score = d - (isSel ? 2 / cam.s : 0) + (hit.kind === 'path' ? 6 / cam.s : 0);
+        const score = d - (isSel ? 2 / cam.s : 0) + (hit.kind === 'path' ? 6 / cam.s : 0) + (hit.kind === 'decor' ? 10 / cam.s : 0);
         if (!best || score <= best.score) best = Object.assign({ score }, hit);
       };
+      /* Pynt vælges kun, når der ikke ligger et spring eller en ridevej samme sted. */
+      decorations().forEach((item) => {
+        const box = Scene.decorBox(item, ctx);
+        consider({ kind: 'decor', id: item.id }, distRect(w.x, w.y, item.x, item.y, box.hw, box.hh, item.rotation));
+      });
       course.paths.forEach((p) => {
         const pts = Scene.flatten(p.points, p.smooth);
         let d = Infinity;
@@ -651,7 +682,7 @@
         const hit = gesture.hit;
         const already = selection && selection.kind === hit.kind && selection.id === hit.id && selection.key === hit.key;
         gesture.label = already ? hit.onLabel : 0;
-        if (!already) select(hit.kind === 'obstacle' || hit.kind === 'path' ? { kind: hit.kind, id: hit.id } : { kind: hit.kind, key: hit.key }, true);
+        if (!already) select(hit.kind === 'marker' ? { kind: hit.kind, key: hit.key } : { kind: hit.kind, id: hit.id }, true);
         const item = findSelected();
         gesture.orig = JSON.parse(JSON.stringify(item));
         dock.classList.add('is-dragging');
@@ -687,6 +718,8 @@
         } else {
           movePoint(item, orig.x + dx, orig.y + dy);
         }
+      } else if (selection.kind === 'decor') {
+        movePoint(item, orig.x + dx, orig.y + dy);
       } else if (selection.kind === 'marker') {
         const key = selection.key;
         if (Scene.isFreeMarker(key)) {
@@ -854,6 +887,7 @@
         points: points.map((q) => ({ x: Store.round2(q.x), y: Store.round2(q.y) })),
         style: d.style,
         width: d.width,
+        dash: d.dash,
         color: d.color,
         arrows: d.arrows,
         smooth,
@@ -894,6 +928,7 @@
         points: route.points,
         style: d.style,
         width: d.width,
+        dash: d.dash,
         color: d.color,
         arrows: d.arrows,
         smooth: true,
@@ -959,6 +994,14 @@
           const input = root.querySelector('[data-field="number"]');
           if (input) input.focus();
         }
+        return;
+      }
+      if (Store.DECOR_TYPES.includes(kind)) {
+        const d = { id: Store.uid('d'), type: kind, x: 0, y: 0, rotation: 0, diameter: Store.DECOR_SIZES[kind] };
+        movePoint(d, w.x, w.y);
+        decorations().push(d);
+        commit();
+        afterPlace({ kind: 'decor', id: d.id });
         return;
       }
       if (Scene.isFreeMarker(kind)) {
@@ -1038,7 +1081,7 @@
         return;
       }
       let w = null;
-      if (selection.kind === 'obstacle' || Scene.isFreeMarker(selection.key)) w = item;
+      if (selection.kind === 'obstacle' || selection.kind === 'decor' || Scene.isFreeMarker(selection.key)) w = item;
       else if (selection.kind === 'marker') {
         const g = Scene.edgeGeom(selection.key, item, ctx);
         w = { x: g.cx, y: g.cy };
@@ -1064,16 +1107,16 @@
 
     /* Det valgte element, hvis det kan drejes: et spring eller START, MÅL og MÅL/START. */
     function selectedTurnable() {
-      return selection && (selection.kind === 'obstacle' || Scene.isFreeMarker(selection.key)) ? findSelected() : null;
+      return selection && (selection.kind === 'obstacle' || selection.kind === 'decor' || Scene.isFreeMarker(selection.key)) ? findSelected() : null;
     }
 
     function worldAngle(item) {
-      return selection.kind === 'obstacle' ? item.rotation : Scene.freeMarkerAngle(item, ctx);
+      return selection.kind === 'marker' ? Scene.freeMarkerAngle(item, ctx) : item.rotation;
     }
 
     /* Vinklen i panelet. For markeringer er 0° opret på skærmen, også når hallen vises på højkant. */
     function shownAngle(item) {
-      return selection.kind === 'obstacle' ? item.rotation : Store.normAngle(worldAngle(item) + rot);
+      return selection.kind === 'marker' ? Store.normAngle(worldAngle(item) + rot) : item.rotation;
     }
 
     function fieldValue(item, field) {
@@ -1110,6 +1153,14 @@
         if (view.autoNumber && /^\d+$/.test(o.number)) copy.number = nextNumber();
         course.obstacles.push(copy);
         selection = { kind: 'obstacle', id: copy.id };
+      } else if (selection.kind === 'decor') {
+        const d = findSelected();
+        const copy = JSON.parse(JSON.stringify(d));
+        copy.id = Store.uid('d');
+        movePoint(copy, d.x + 2 * ctx.u, d.y + 2 * ctx.u);
+        if (copy.x === d.x && copy.y === d.y) movePoint(copy, d.x - 2 * ctx.u, d.y - 2 * ctx.u);
+        decorations().push(copy);
+        selection = { kind: 'decor', id: copy.id };
       } else if (selection.kind === 'path') {
         const p = findSelected();
         const copy = JSON.parse(JSON.stringify(p));
@@ -1126,6 +1177,7 @@
       if (!selection) return;
       if (selection.kind === 'obstacle') course.obstacles = course.obstacles.filter((o) => o.id !== selection.id);
       else if (selection.kind === 'path') course.paths = course.paths.filter((p) => p.id !== selection.id);
+      else if (selection.kind === 'decor') course.decorations = decorations().filter((d) => d.id !== selection.id);
       else {
         const e = course.markers.entrance;
         if (selection.key === 'entrance' && e && e.linked) course.markers.exit = null;
@@ -1239,13 +1291,46 @@
 
     function styleControls(d) {
       const line = (dash) => '<svg viewBox="0 0 44 10" width="44" height="10" aria-hidden="true"><line x1="3" y1="5" x2="41" y2="5" stroke="currentColor" stroke-width="3" stroke-linecap="round"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/></svg>';
-      const thick = (w) => '<svg viewBox="0 0 30 12" width="30" height="12" aria-hidden="true"><line x1="3" y1="6" x2="27" y2="6" stroke="currentColor" stroke-width="' + w + '" stroke-linecap="round"/></svg>';
       return '<div class="row-field"><span class="row-label">Streg</span>' + seg('style', [['solid', line(''), 'Fuldt optrukket'], ['dashed', line('7 6'), 'Stiplet'], ['dotted', line('0 6'), 'Prikket']], d.style) + '</div>' +
-        '<div class="row-field"><span class="row-label">Tykkelse</span>' + seg('width', [[0.6, thick(1.6), 'Tynd'], [1, thick(3), 'Normal'], [1.6, thick(5), 'Tyk']], d.width) + '</div>' +
+        rangeField('thickness', 'Tykkelse', thicknessOf(d), 10, 0.5) +
+        rangeField('dash', 'Længde af stregerne', d.dash == null ? 10 : d.dash, 100, 1) +
         '<div class="row-field"><span class="row-label">Farve</span><div class="swatches">' + Store.PATH_COLORS.map((c) =>
           '<button type="button" class="swatch ' + (c === d.color ? 'on' : '') + '" data-color="' + c + '" style="--c:' + c + '" aria-label="Farve ' + c + '"></button>').join('') + '</div></div>' +
         '<div class="row-field"><span class="row-label">Pile på linjen</span>' + toggle('arrows', d.arrows) + '</div>' +
         '<div class="row-field"><span class="row-label">Afrundet</span>' + toggle('smooth', d.smooth) + '</div>';
+    }
+
+    function rangeField(name, label, value, max, step) {
+      return '<div class="row-field col"><span class="row-label">' + esc(label) + ' <b data-range-val="' + name + '">' + fmtNum(value, 1) + '</b></span>' +
+        '<input type="range" min="0" max="' + max + '" step="' + step + '" value="' + value + '" data-range="' + name + '" aria-label="' + esc(label) + '"></div>';
+    }
+
+    /* Tykkelsen vises fra 0 til 10. I data er width en faktor fra 0 til 4. */
+    function thicknessOf(d) {
+      return Math.round(d.width * WIDTH_PER_STEP_INV * 2) / 2;
+    }
+
+    /* Følger skyderen, mens der trækkes. Fortryd-trinnet laves først, når fingeren slippes. */
+    function setLineRange(name, value) {
+      const t = styleTarget();
+      if (name === 'thickness') {
+        t.width = Store.round2(value / WIDTH_PER_STEP_INV);
+      } else {
+        t.dash = value;
+        /* Længden betyder kun noget på en stiplet linje. */
+        if (t.style !== 'dashed') {
+          t.style = 'dashed';
+          root.querySelectorAll('[data-seg="style"]').forEach((b) => b.classList.toggle('on', b.dataset.val === 'dashed'));
+        }
+      }
+      const shown = root.querySelector('[data-range-val="' + name + '"]');
+      if (shown) shown.textContent = fmtNum(value, 1);
+      if (selection && selection.kind === 'path') {
+        updateElement(selection);
+        renderOverlay();
+      } else {
+        renderDraft();
+      }
     }
 
     function toggle(name, on) {
@@ -1272,6 +1357,8 @@
         html = obstaclePanel(item);
       } else if (item && selection.kind === 'marker') {
         html = markerPanel(item);
+      } else if (item && selection.kind === 'decor') {
+        html = decorPanel(item);
       } else if (item && selection.kind === 'path') {
         html = pathPanel(item);
       } else if (sideLayout.matches) {
@@ -1331,6 +1418,14 @@
         (free ? actBtn('rotl', 'rotl', 'Drej venstre') + actBtn('rotr', 'rotr', 'Drej højre') + actBtn('flip', 'flip', 'Vend 180°') : actBtn('nextSide', 'rotr', 'Næste væg')) + gateBtn +
         actBtn('delete', 'trash', 'Slet', 'danger') + '</div>' +
         (free ? '<div class="ctx-more open">' + stepper('size', 'Størrelse', fieldValue(m, 'size'), '%') + stepper('rotation', 'Præcis vinkel', shownAngle(m), '°') + '</div>' : '');
+    }
+
+    function decorPanel(d) {
+      return panelHead(DECOR_NAMES[d.type]) +
+        '<div class="act-row">' +
+        actBtn('rotl', 'rotl', 'Drej venstre') + actBtn('rotr', 'rotr', 'Drej højre') +
+        actBtn('copy', 'copy', 'Kopier') + actBtn('delete', 'trash', 'Slet', 'danger') + '</div>' +
+        '<div class="ctx-more open">' + stepper('diameter', d.type === 'flowers' ? 'Længde' : 'Størrelse', d.diameter, 'm') + '</div>';
     }
 
     function pathPanel(p) {
@@ -1467,9 +1562,6 @@
       } else if (group === 'style') {
         styleTarget().style = val;
         styleChanged();
-      } else if (group === 'width') {
-        styleTarget().width = +val;
-        styleChanged();
       } else if (group === 'drawMode') {
         if (draftPoints.length) finishPoints();
         view.draw.mode = val;
@@ -1493,7 +1585,7 @@
       styleChanged();
     }
 
-    const FIELD_RANGE = { width: [0.5, 15, 0.5], depth: [0.3, 6, 0.1], size: [40, 300, 10] };
+    const FIELD_RANGE = { width: [0.5, 15, 0.5], depth: [0.3, 6, 0.1], size: [40, 300, 10], diameter: [0.5, 15, 0.5] };
 
     function setField(field, value) {
       const o = selectedTurnable();
@@ -1521,6 +1613,7 @@
 
     function onDockInput(e) {
       const input = e.target;
+      if (input.dataset.range) { setLineRange(input.dataset.range, +input.value); return; }
       const field = input.dataset.field;
       if (field !== 'number' && field !== 'number2' && field !== 'number3') return;
       const o = selectedObstacle();
@@ -1538,6 +1631,7 @@
 
     function onDockChange(e) {
       const input = e.target;
+      if (input.dataset.range) { styleChanged(); return; }
       const field = input.dataset.field;
       if (!field) return;
       if (field === 'number' || field === 'number2' || field === 'number3') { commit(); return; }
@@ -1577,6 +1671,7 @@
         const d = Store.OBSTACLE_DEFAULTS[kind];
         return Scene.obstacle({ type: kind, x: w.x, y: w.y, rotation: 0, number: '', showNumber: false, showArrow: true, width: d.width, depth: d.depth, label: null }, ctx);
       }
+      if (Store.DECOR_TYPES.includes(kind)) return Scene.decoration({ type: kind, x: w.x, y: w.y, rotation: 0, diameter: Store.DECOR_SIZES[kind] }, ctx);
       if (Scene.isFreeMarker(kind)) return Scene.marker(kind, { x: w.x, y: w.y }, ctx);
       const edge = Scene.projectEdge(hall, w.x, w.y);
       return kind === 'judge' ? Scene.marker('judge', edge, ctx) : Scene.marker('entrance', Object.assign({ linked: true }, edge), ctx);
@@ -1709,6 +1804,208 @@
       });
     }
 
+    function runOutput(action, contest) {
+      if (action === 'png') {
+        Exporter.exportPng(hall, course, { contest }).then(() => toast('Billedet er gemt i dine overførsler.')).catch((err) => toast(err.message, 'error'));
+      } else {
+        Exporter.printCourse(hall, course, { contest });
+      }
+    }
+
+    /* Før print og billede: til træning eller til stævne? */
+    function chooseOutput(action) {
+      const option = (value, ic, title, note) => '<button type="button" class="out-option" data-out="' + value + '">' + icon(ic) +
+        '<span><strong>' + title + '</strong><small>' + note + '</small></span></button>';
+      UI.openDialog({
+        title: 'Hvad skal banen bruges til?',
+        sheet: true,
+        body: '<div class="out-options">' +
+          option('training', 'route', 'Træning', 'Banen og afstandene mellem springene.') +
+          option('contest', 'trophy', 'Stævne', 'Med logo, klasse, tempo, tider og banedesign.') + '</div>',
+        onOpen: (d, fin) => {
+          d.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-out]');
+            if (b) fin(b.dataset.out);
+          });
+        },
+      }).then((choice) => {
+        if (choice === 'training') runOutput(action, false);
+        if (choice === 'contest') openContestForm(action);
+      });
+    }
+
+    /* Forslag til længden: afstandene, hvis alle er udfyldt, ellers den foreslåede ridevej. */
+    function suggestedLength() {
+      const legs = Exporter.legs(course);
+      const saved = course.distances || {};
+      if (legs.length && legs.every((l) => saved[l.key] != null)) {
+        return String(Math.round(legs.reduce((sum, l) => sum + saved[l.key], 0)));
+      }
+      const auto = course.paths.find((p) => p.auto);
+      if (!auto) return '';
+      const pts = Scene.flatten(auto.points, auto.smooth);
+      let len = 0;
+      for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+      return String(Math.round(len / 5) * 5);
+    }
+
+    function suggestedJumps() {
+      const numbers = Exporter.courseStops(course).map((s) => parseInt(s.name, 10)).filter((n) => !isNaN(n));
+      return numbers.length ? Math.min(...numbers) + '-' + Math.max(...numbers) : '';
+    }
+
+    function todayText() {
+      const d = new Date();
+      const two = (n) => String(n).padStart(2, '0');
+      return two(d.getDate()) + '-' + two(d.getMonth() + 1) + '-' + d.getFullYear();
+    }
+
+    /* Gør et valgt billede lille nok til at ligge i browserens lager. */
+    function readLogo(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          const fit = Math.min(1, LOGO_MAX / Math.max(img.naturalWidth || LOGO_MAX, img.naturalHeight || LOGO_MAX));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round((img.naturalWidth || LOGO_MAX) * fit));
+          canvas.height = Math.max(1, Math.round((img.naturalHeight || LOGO_MAX) * fit));
+          const g = canvas.getContext('2d');
+          g.drawImage(img, 0, 0, canvas.width, canvas.height);
+          let data = canvas.toDataURL('image/png');
+          if (data.length > 300000) {
+            /* Et foto fylder for meget som PNG. JPEG har ingen gennemsigtighed, så bunden bliver hvid. */
+            g.globalCompositeOperation = 'destination-over';
+            g.fillStyle = '#fff';
+            g.fillRect(0, 0, canvas.width, canvas.height);
+            data = canvas.toDataURL('image/jpeg', 0.85);
+          }
+          if (Store.goodLogo(data)) resolve(data);
+          else reject(new Error('Billedet er for stort.'));
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Filen kunne ikke læses som et billede.'));
+        };
+        img.src = url;
+      });
+    }
+
+    /* Formular til stævnearket med forhåndsvisning. Alt gemmes, mens der skrives. */
+    function openContestForm(action) {
+      const show = Object.assign({}, course.show);
+      if (!show.date) show.date = todayText();
+      if (!show.jumps) show.jumps = suggestedJumps();
+      if (!show.length) show.length = suggestedLength();
+      course.show = show;
+      const field = (key, label, placeholder, numeric) => '<label class="field"><span>' + esc(label) + '</span><span class="field-input"><input data-show-key="' + key + '" value="' + esc(show[key] || '') + '" placeholder="' + esc(placeholder) + '" maxlength="60" autocomplete="off"' + (numeric ? ' inputmode="decimal"' : '') + '></span></label>';
+      const body = document.createElement('div');
+      body.className = 'show-form';
+      body.innerHTML = '<div class="show-preview" aria-label="Forhåndsvisning"></div>' +
+        '<div class="show-logo"><div class="show-logo-img"></div><div class="show-logo-btns">' +
+        '<label class="btn secondary">' + icon('image') + '<span>Vælg logo</span><input type="file" accept="image/*" hidden data-logo-file></label>' +
+        '<button type="button" class="linkbtn danger" data-logo-remove>Fjern logo</button></div></div>' +
+        '<p class="show-note">Logoet gemmes på ridehallen, så du kun skal vælge det én gang. Tomme felter kommer ikke med.</p>' +
+        '<h3 class="show-head">Klassen</h3><div class="show-grid">' +
+        field('classNo', 'Klasse nr.', '7') + field('className', 'Klasse', '10-90') +
+        field('level', 'Klassetype', 'Klubklasse') + field('discipline', 'Springning', 'Hovedspringning') +
+        field('method', 'Metode', 'B0') + field('kind', 'Form', 'Sløjfespringning') +
+        field('date', 'Dato', '31-10-2026') + field('height', 'Højde', '10-90') + '</div>' +
+        '<h3 class="show-head">Banen</h3><div class="show-grid">' +
+        field('jumps', 'Spring', '1-8') + field('length', 'Længde i meter', '380', true) +
+        field('tempo', 'Tempo i m/minut', '325', true) + '<span></span>' +
+        field('timeAllowed', 'Fejlfri tid i sek', '71', true) + field('timeMax', 'Max tid i sek', '142', true) + '</div>' +
+        '<p class="show-note">Fejlfri tid og max tid regnes ud fra længde og tempo. Du kan selv rette dem.</p>' +
+        '<h3 class="show-head">Navne</h3><div class="show-grid">' +
+        field('designer', 'Banedesign', 'Navn') + field('extra', 'Ekstra navn', 'F.eks. dommer') + '</div>' +
+        '<div class="row-field show-toggle"><span class="row-label">Vis afstande mellem spring</span>' + toggle('showDistances', show.showDistances) + '</div>';
+
+      const preview = () => {
+        body.querySelector('.show-preview').innerHTML = Exporter.contestSheet(hall, course).svg;
+        const logo = body.querySelector('.show-logo-img');
+        logo.innerHTML = hall.logo ? '<img alt="Logo" src="' + esc(hall.logo) + '">' : icon('image');
+        body.querySelector('[data-logo-remove]').hidden = !hall.logo;
+      };
+      const save = () => {
+        Store.touchCourse(course);
+        preview();
+      };
+      const input = (key) => body.querySelector('[data-show-key="' + key + '"]');
+      const setValue = (key, value) => {
+        input(key).value = value;
+        if (value) show[key] = value;
+        else delete show[key];
+      };
+      /* Tiderne følger med, indtil man selv har rettet dem. */
+      let lastAllowed = show.timeAllowed || '';
+      let lastMax = show.timeMax || '';
+      const updateTimes = () => {
+        const tempo = parseNum(show.tempo);
+        const length = parseNum(show.length);
+        if (!(tempo > 0 && length > 0)) return;
+        const allowed = Math.ceil(length / tempo * 60);
+        if ((show.timeAllowed || '') === lastAllowed) {
+          lastAllowed = String(allowed);
+          setValue('timeAllowed', lastAllowed);
+        }
+        if ((show.timeMax || '') === lastMax) {
+          lastMax = String(allowed * 2);
+          setValue('timeMax', lastMax);
+        }
+      };
+
+      body.addEventListener('input', (e) => {
+        const key = e.target.dataset.showKey;
+        if (!key) return;
+        const value = e.target.value.trim();
+        if (value) show[key] = value;
+        else delete show[key];
+        if (key === 'tempo' || key === 'length') updateTimes();
+        save();
+      });
+      body.addEventListener('change', (e) => {
+        if (!e.target.matches('[data-logo-file]')) return;
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        readLogo(file).then((data) => {
+          hall.logo = data;
+          save();
+        }).catch((err) => toast(err.message, 'error'));
+      });
+      body.addEventListener('click', (e) => {
+        if (e.target.closest('[data-logo-remove]')) {
+          delete hall.logo;
+          save();
+        }
+        const t = e.target.closest('[data-toggle="showDistances"]');
+        if (t) {
+          show.showDistances = !show.showDistances;
+          if (!show.showDistances) delete show.showDistances;
+          t.classList.toggle('on', !!show.showDistances);
+          t.setAttribute('aria-checked', !!show.showDistances);
+          save();
+        }
+      });
+      updateTimes();
+      preview();
+      Store.touchCourse(course);
+      UI.openDialog({
+        title: 'Stævneark',
+        sheet: true,
+        className: 'show-dlg',
+        body,
+        actions: [
+          { label: action === 'png' ? 'Gem billede (PNG)' : 'Udskriv eller gem som PDF', kind: 'primary', value: 'go' },
+          { label: 'Luk', kind: 'ghost', value: null },
+        ],
+      }).then((go) => {
+        Store.flush();
+        if (go) runOutput(action, true);
+      });
+    }
+
     function openMenu() {
       const body = document.createElement('div');
       body.className = 'menu-body';
@@ -1756,10 +2053,8 @@
         if (!m) return;
         const action = m.dataset.menu;
         finish(null);
-        if (action === 'png') {
-          Exporter.exportPng(hall, course).then(() => toast('Billedet er gemt i dine overførsler.')).catch((err) => toast(err.message, 'error'));
-        } else if (action === 'print') {
-          Exporter.printCourse(hall, course);
+        if (action === 'png' || action === 'print') {
+          chooseOutput(action);
         } else if (action === 'rename') {
           renameCourse();
         } else if (action === 'renumber') {
@@ -1917,7 +2212,7 @@
         '<div class="stage" data-mode="select">' +
         '<svg class="stage-svg" xmlns="http://www.w3.org/2000/svg" font-family="' + Scene.FONT + '" aria-label="Ridebane">' +
         '<g data-cam><g data-world>' +
-        '<g data-layer="surface"></g><g data-layer="paths"></g><g data-layer="obstacles"></g><g data-layer="markers"></g><g data-layer="draft"></g>' +
+        '<g data-layer="surface"></g><g data-layer="decorations"></g><g data-layer="paths"></g><g data-layer="obstacles"></g><g data-layer="markers"></g><g data-layer="draft"></g>' +
         '</g></g><g data-overlay></g></svg>' +
         '<div class="hint" role="status"></div>' +
         '<div class="zoom">' +

@@ -49,6 +49,10 @@ window.GBS = window.GBS || {};
     smooth: '<path d="M4 18C6 6 18 18 20 6"/>',
     grid: '<path d="M4 4h16v16H4zM4 12h16M12 4v16"/>',
     wand: '<path d="M5 19L16 8"/><path d="M14 6l4 4"/><path d="M19 3v3M17.5 4.5h3M6 5v3M4.5 6.5h3M19 15v3M17.5 16.5h3"/>',
+    tree: '<path d="M12 2l2 3 3-1.2.2 3.2 3.2.2L19 10l3 2-3 2 1.2 3-3.2.2-.2 3.2-3-1.2-2 3-2-3-3 1.2-.2-3.2-3.2-.2L5 14l-3-2 3-2-1.2-3 3.2-.2.2-3.2 3 1.2z" fill="#2f9e44" stroke="#1b6e2e" stroke-width="1"/><circle cx="12" cy="12" r="3" fill="#17632a" stroke="none"/>',
+    bush: '<g fill="#6aa84f" stroke="#4b8136" stroke-width="1"><circle cx="12" cy="6.5" r="4"/><circle cx="17.5" cy="11" r="4"/><circle cx="15.5" cy="17" r="4"/><circle cx="8.5" cy="17" r="4"/><circle cx="6.5" cy="11" r="4"/></g><circle cx="12" cy="12" r="4.5" fill="#8cc06f" stroke="none"/>',
+    flowers: '<rect x="2" y="8" width="20" height="8" rx="2" fill="#8a5a33" stroke="#5e3d22" stroke-width="1"/><circle cx="7" cy="12" r="2.3" fill="#e64980" stroke="none"/><circle cx="12" cy="12" r="2.3" fill="#fcc419" stroke="none"/><circle cx="17" cy="12" r="2.3" fill="#e64980" stroke="none"/>',
+    trophy: '<path d="M8 4h8v6a4 4 0 01-8 0z"/><path d="M8 6H4v2a4 4 0 004 4M16 6h4v2a4 4 0 01-4 4M12 14v4M8 21h8M9.5 18h5"/>',
     ruler: '<path d="M3 16L16 3l5 5L8 21z"/><path d="M7.5 11.5l2 2M10.5 8.5l2.5 2.5M13.5 5.5l2 2"/>',
   };
 

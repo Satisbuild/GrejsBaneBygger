@@ -157,10 +157,17 @@
   }
 
   function obstacleBoxes(course) {
-    return course.obstacles.map((o) => {
+    const jumps = course.obstacles.map((o) => {
       const r = o.rotation * Math.PI / 180;
       return { o, x: o.x, y: o.y, cos: Math.cos(r), sin: Math.sin(r), hx: (o.depth || 0) / 2 + 0.3 + JUMP_CLEARANCE, hy: o.width / 2 + JUMP_CLEARANCE };
     });
+    /* Ruten skal også uden om træer, buske og blomster. */
+    const decor = (course.decorations || []).map((d) => {
+      const r = d.rotation * Math.PI / 180;
+      const hy = d.type === 'flowers' ? d.diameter * 0.2 : d.diameter / 2;
+      return { o: d, x: d.x, y: d.y, cos: Math.cos(r), sin: Math.sin(r), hx: d.diameter / 2 + JUMP_CLEARANCE, hy: hy + JUMP_CLEARANCE };
+    });
+    return jumps.concat(decor);
   }
 
   /* Bygger ruten. Returnerer points og pins (de punkter, der ligger på et spring) eller null uden numre. */

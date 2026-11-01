@@ -9,6 +9,8 @@
   const SAVE_DELAY = 200;
 
   const OBSTACLE_TYPES = ['vertical', 'oxer', 'triple', 'pole'];
+  const DECOR_TYPES = ['tree', 'bush', 'flowers'];
+  const DECOR_SIZES = { tree: 4, bush: 2.5, flowers: 3 };
   const SIDES = ['top', 'right', 'bottom', 'left'];
   const PATH_STYLES = ['solid', 'dashed', 'dotted'];
   const PATH_COLORS = ['#5f6368', '#111111', '#1560bd', '#1a7f4b', '#d9480f'];
@@ -20,7 +22,7 @@
   };
 
   const defaultSettings = () => ({ introSeen: false, defaultGrid: true, defaultSnap: false, defaultAutoNumber: true });
-  const defaultDraw = () => ({ mode: 'free', style: 'dashed', width: 0.6, color: PATH_COLORS[0], arrows: false, smooth: true });
+  const defaultDraw = () => ({ mode: 'free', style: 'dashed', width: 0.6, dash: 10, color: PATH_COLORS[0], arrows: false, smooth: true });
   const defaultView = (settings) => ({
     showGrid: settings ? settings.defaultGrid : true,
     snap: settings ? settings.defaultSnap : false,
@@ -85,6 +87,36 @@
     };
   }
 
+  function normDecor(d, seen) {
+    if (!d || !DECOR_TYPES.includes(d.type) || !isNum(d.x) || !isNum(d.y)) return null;
+    return {
+      id: goodId(d.id, 'd', seen),
+      type: d.type,
+      x: round2(d.x),
+      y: round2(d.y),
+      rotation: normAngle(isNum(d.rotation) ? d.rotation : 0),
+      diameter: num(d.diameter, DECOR_SIZES[d.type], 0.5, 15),
+    };
+  }
+
+  /* Oplysningerne til stævnearket. Kun kendte felter og kun tekst gemmes. */
+  const SHOW_KEYS = ['classNo', 'className', 'date', 'level', 'discipline', 'method', 'kind', 'jumps', 'height', 'tempo', 'length', 'timeAllowed', 'timeMax', 'designer', 'extra'];
+
+  function normShow(s) {
+    const out = {};
+    if (!s || typeof s !== 'object') return out;
+    SHOW_KEYS.forEach((k) => {
+      if (typeof s[k] === 'string' && s[k].trim()) out[k] = s[k].slice(0, 60);
+    });
+    if (s.showDistances === true) out.showDistances = true;
+    return out;
+  }
+
+  /* Logoet er et lille billede gemt som tekst. Alt andet afvises, så det aldrig kan være kode. */
+  function goodLogo(v) {
+    return typeof v === 'string' && v.length <= 500000 && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(v);
+  }
+
   function normFreeMarker(m, seen) {
     if (!m || !isNum(m.x) || !isNum(m.y)) return null;
     const out = { id: goodId(m.id, 'm', seen), x: round2(m.x), y: round2(m.y) };
@@ -109,7 +141,8 @@
       mode: p.mode === 'points' ? 'points' : 'free',
       points,
       style: PATH_STYLES.includes(p.style) ? p.style : 'dashed',
-      width: num(p.width, 1, 0.3, 4),
+      width: num(p.width, 1, 0, 4),
+      dash: num(p.dash, 10, 0, 100),
       color: /^#[0-9a-f]{6}$/i.test(p.color) ? p.color : PATH_COLORS[0],
       arrows: p.arrows !== false,
       smooth: p.smooth !== false,
@@ -132,7 +165,8 @@
       draw: {
         mode: draw.mode === 'points' ? 'points' : 'free',
         style: PATH_STYLES.includes(draw.style) ? draw.style : 'dashed',
-        width: num(draw.width, 0.6, 0.3, 4),
+        width: num(draw.width, 0.6, 0, 4),
+        dash: num(draw.dash, 10, 0, 100),
         color: /^#[0-9a-f]{6}$/i.test(draw.color) ? draw.color : PATH_COLORS[0],
         arrows: draw.arrows === true,
         smooth: draw.smooth !== false,
@@ -169,6 +203,8 @@
       },
       paths: (Array.isArray(c.paths) ? c.paths : []).map((p) => normPath(p, inner)).filter(Boolean),
       distances: normDistances(c.distances),
+      decorations: (Array.isArray(c.decorations) ? c.decorations : []).map((d) => normDecor(d, inner)).filter(Boolean),
+      show: normShow(c.show),
       view: normView(c.view),
     };
   }
@@ -180,6 +216,7 @@
       name: String(h.name || 'Ridehal').slice(0, 60),
       length: num(h.length, 40, 5, 500),
       width: num(h.width, 20, 5, 500),
+      ...(goodLogo(h.logo) ? { logo: h.logo } : {}),
       courses: (Array.isArray(h.courses) ? h.courses : []).map((c) => normCourse(c, courseSeen)).filter(Boolean),
     };
   }
@@ -277,6 +314,7 @@
       markers: emptyMarkers(),
       paths: [],
       distances: {},
+      decorations: [],
       view: defaultView(state.settings),
     };
   }
@@ -334,6 +372,7 @@
       n += c.obstacles.filter(outside).length;
       n += FREE_MARKERS.filter((k) => c.markers[k] && outside(c.markers[k])).length;
       n += c.paths.filter((p) => p.points.some(outside)).length;
+      n += (c.decorations || []).filter(outside).length;
     });
     return n;
   }
@@ -360,6 +399,7 @@
       if (moveInside) {
         c.obstacles.forEach(clampPt);
         FREE_MARKERS.forEach((k) => { if (c.markers[k]) clampPt(c.markers[k]); });
+      (c.decorations || []).forEach(clampPt);
         c.paths.forEach((p) => p.points.forEach(clampPt));
       }
     });
@@ -439,7 +479,7 @@
   }
 
   GBS.Store = {
-    KEY, OBSTACLE_TYPES, OBSTACLE_DEFAULTS, PATH_COLORS, SIDES, FREE_MARKERS,
+    KEY, SHOW_KEYS, goodLogo, OBSTACLE_TYPES, OBSTACLE_DEFAULTS, DECOR_TYPES, DECOR_SIZES, PATH_COLORS, SIDES, FREE_MARKERS,
     uid, load, reload, flush, scheduleSave, hasPending,
     get state() { return state; },
     get settings() { return state.settings; },
