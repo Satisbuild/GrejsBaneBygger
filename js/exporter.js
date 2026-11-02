@@ -11,6 +11,8 @@
   const INK_2 = '#4f564f';
   const LINE = '#dcd9cd';
   const RED = '#d0202a';
+  const SITE = 'https://grejsbanebyg.com/';
+  const PROMO_H = 46;
 
   /* ---------- Afstande ---------- */
 
@@ -63,6 +65,14 @@
       '<text x="' + (x + 16).toFixed(1) + '" y="' + (y + 30) + '" font-size="18" font-weight="600" fill="' + INK_2 + '">' + esc(leg.from) +
       ' <tspan fill="' + RED + '">→</tspan> ' + esc(leg.to) + '</text>' +
       text((x + 16).toFixed(1), y + 64, fmtNum(meters, 1) + ' m', 28, INK, 'font-weight="700"');
+  }
+
+  /* Linjen nederst på arket, der viser vej til siden. Linket kan klikkes i en PDF; på et billede kan adressen læses. */
+  function promo(width, pad, y) {
+    return '<rect x="' + pad + '" y="' + y + '" width="' + (width - pad * 2) + '" height="1.5" fill="' + LINE + '"/>' +
+      '<a href="' + SITE + '" target="_blank" rel="noopener">' +
+      '<text x="' + (width / 2) + '" y="' + (y + 31) + '" font-size="18" fill="' + INK_2 + '" text-anchor="middle">Tegnet med Grejs Bane Byg · Tegn din egen bane på ' +
+      '<tspan fill="' + FOREST + '" font-weight="800">grejsbanebyg.com</tspan></text></a>';
   }
 
   /* Overskrift og kort med afstandene. Returnerer tom tekst og uændret y, hvis ingen er udfyldt. */
@@ -171,7 +181,9 @@
       body += text(W - PAD, y + 26, s.extra, 17, INK_2, 'text-anchor="end"');
       y += 26;
     }
-    const H = Math.round(y + 26);
+    y += 18;
+    body += promo(W, PAD, y);
+    const H = Math.round(y + PROMO_H);
     const size = o.pxWidth ? ' width="' + o.pxWidth + '" height="' + Math.round(o.pxWidth * H / W) + '"' : '';
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '"' + size + ' font-family="' + Scene.FONT + '">' +
       (o.background ? '<rect width="' + W + '" height="' + H + '" fill="#fff"/>' : '') + body + '</svg>';
@@ -210,8 +222,8 @@
     const section = distanceSection(course, PAD, y, W);
     body += section.svg;
     y = section.y;
-    body += text(W - PAD, y + 10, 'Grejs Bane Byg', 15, INK_2, 'text-anchor="end"');
-    const H = Math.round(y + 30);
+    body += promo(W, PAD, y);
+    const H = Math.round(y + PROMO_H);
 
     const size = o.pxWidth ? ' width="' + o.pxWidth + '" height="' + Math.round(o.pxWidth * H / W) + '"' : '';
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '"' + size + ' font-family="' + Scene.FONT + '">' +
