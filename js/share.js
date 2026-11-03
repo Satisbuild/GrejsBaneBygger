@@ -40,6 +40,7 @@
         paths: forLink ? course.paths.map(thinPath) : course.paths,
         distances: course.distances,
         decorations: course.decorations,
+        letters: course.letters,
         show: course.show,
         view: course.view,
       },

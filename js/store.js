@@ -99,8 +99,17 @@
     };
   }
 
+  /* Et bogstav står enten på en væg (side og pos fra væggens start) eller inde på banen (x og y). */
+  function normLetter(l, seen) {
+    if (!l || typeof l !== 'object') return null;
+    const text = String(l.text == null ? '' : l.text).trim().slice(0, 3) || '?';
+    if (SIDES.includes(l.side) && isNum(l.pos)) return { id: goodId(l.id, 'l', seen), text, side: l.side, pos: round2(Math.max(0, l.pos)) };
+    if (isNum(l.x) && isNum(l.y)) return { id: goodId(l.id, 'l', seen), text, x: round2(l.x), y: round2(l.y) };
+    return null;
+  }
+
   /* Oplysningerne til stævnearket. Kun kendte felter og kun tekst gemmes. */
-  const SHOW_KEYS = ['classNo', 'className', 'date', 'level', 'discipline', 'method', 'kind', 'jumps', 'height', 'tempo', 'length', 'timeAllowed', 'timeMax', 'designer', 'extra'];
+  const SHOW_KEYS = ['classNo', 'className', 'date', 'level', 'discipline', 'method', 'kind', 'jumps', 'height', 'tempo', 'length', 'timeAllowed', 'timeMax', 'designer', 'extra', 'madeBy'];
 
   function normShow(s) {
     const out = {};
@@ -204,6 +213,7 @@
       paths: (Array.isArray(c.paths) ? c.paths : []).map((p) => normPath(p, inner)).filter(Boolean),
       distances: normDistances(c.distances),
       decorations: (Array.isArray(c.decorations) ? c.decorations : []).map((d) => normDecor(d, inner)).filter(Boolean),
+      letters: (Array.isArray(c.letters) ? c.letters : []).slice(0, 60).map((l) => normLetter(l, inner)).filter(Boolean),
       show: normShow(c.show),
       view: normView(c.view),
     };
@@ -315,6 +325,7 @@
       paths: [],
       distances: {},
       decorations: [],
+      letters: [],
       view: defaultView(state.settings),
     };
   }
@@ -359,9 +370,29 @@
 
   function createCourse(hall, name) {
     const c = newCourse(name || nextCourseName(hall));
+    /* Bogstaverne hører til stedet, så en ny bane i samme hal starter med dem, man allerede har sat op. */
+    const withLetters = hall.courses.find((e) => e.letters && e.letters.length);
+    if (withLetters) c.letters = JSON.parse(JSON.stringify(withLetters.letters));
     hall.courses.unshift(c);
     scheduleSave();
     return c;
+  }
+
+  /* A og C på endevæggene, F, B, M og K, E, H på langsiderne og X i midten. */
+  function standardLetters(hall) {
+    const long = hall.length >= hall.width;
+    const [endA, endC] = long ? ['left', 'right'] : ['top', 'bottom'];
+    const [sideF, sideK] = long ? ['bottom', 'top'] : ['left', 'right'];
+    const along = Math.max(hall.length, hall.width);
+    const across = Math.min(hall.length, hall.width);
+    const inset = round2(Math.min(6, along / 4));
+    const edge = (text, side, pos) => ({ id: uid('l'), text, side, pos: round2(pos) });
+    return [
+      edge('A', endA, across / 2), edge('C', endC, across / 2),
+      edge('F', sideF, inset), edge('B', sideF, along / 2), edge('M', sideF, along - inset),
+      edge('K', sideK, inset), edge('E', sideK, along / 2), edge('H', sideK, along - inset),
+      { id: uid('l'), text: 'X', x: round2(hall.length / 2), y: round2(hall.width / 2) },
+    ];
   }
 
   function duplicateCourse(hall, course) {
@@ -421,6 +452,10 @@
     hall.width = width;
     hall.courses.forEach((c) => {
       clampMarkersToEdge(c, length, width);
+      (c.letters || []).forEach((l) => {
+        if (l.side) l.pos = Math.min(l.pos, l.side === 'top' || l.side === 'bottom' ? length : width);
+        else clampPt(l);
+      });
       if (moveInside) {
         c.obstacles.forEach(clampPt);
         FREE_MARKERS.forEach((k) => { if (c.markers[k]) clampPt(c.markers[k]); });
@@ -517,7 +552,7 @@
       if (i >= 0) statusListeners.splice(i, 1);
     },
     getHall, getCourse, createHall, cleanShared, addSharedCourse, createCourse, duplicateCourse, deleteCourse, deleteHall, touchCourse,
-    nextCourseName, countOutside, resizeHall, normAngle, round2,
+    nextCourseName, standardLetters, countOutside, resizeHall, normAngle, round2,
     exportBackup, parseBackup, replaceFromBackup, mergeFromBackup, deleteEverything, storageBytes,
   };
 })(window.GBS);

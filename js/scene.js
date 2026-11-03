@@ -463,7 +463,8 @@
     const u = c.u;
     const len = sideLength(hall, side);
     const p = sidePoint(hall, side, 0);
-    const off = 1.45 * u;
+    /* Med bogstaver på væggen rykker målet ud, så bogstavernes egne afstande kan stå inden for det. */
+    const off = (lettersOn(course, side).length ? 5.6 : 1.45) * u;
     let at = len / 2;
     const taken = course ? ['judge', 'entrance', 'exit'].map((k) => course.markers[k]).filter((m) => m && m.side === side).map((m) => m.pos) : [];
     if (taken.some((t) => Math.abs(t - at) < 5 * u)) {
@@ -492,6 +493,104 @@
       '<text y="' + f(fs * 0.36) + '" text-anchor="middle" font-size="' + f(fs) + '" font-weight="600" fill="#45433a">' + esc(text) + '</text></g>';
   }
 
+  /* ---------- Bogstaver rundt om banen ---------- */
+
+  function lettersOn(course, side) {
+    return course ? (course.letters || []).filter((l) => l.side === side) : [];
+  }
+
+  /* Bogstavet står uden for væggen, eller på sin plads, hvis det står inde på banen. */
+  function letterGeom(l, c) {
+    const u = c.u;
+    const fs = 1.05 * u;
+    const hw = Math.max(0.85 * u, String(l.text).length * 0.36 * fs + 0.3 * u);
+    if (!l.side) return { cx: l.x, cy: l.y, fs, hw, hh: 0.85 * u };
+    const p = sidePoint(c.hall, l.side, clamp(l.pos, 0, sideLength(c.hall, l.side)));
+    return { cx: p.x + p.ox * 1.25 * u, cy: p.y + p.oy * 1.25 * u, fs, hw, hh: 0.85 * u };
+  }
+
+  function letter(l, c) {
+    const g = letterGeom(l, c);
+    return '<g transform="translate(' + f(g.cx) + ' ' + f(g.cy) + ') rotate(' + (-c.rot) + ')">' +
+      '<ellipse rx="' + f(g.hw) + '" ry="' + f(g.hh) + '" fill="#fff" stroke="#111" stroke-width="' + f(0.09 * c.u) + '"/>' +
+      '<text y="' + f(g.fs * 0.36) + '" text-anchor="middle" font-size="' + f(g.fs) + '" font-weight="800" fill="#111">' + esc(l.text) + '</text></g>';
+  }
+
+  /* Tekst med en lille bund, så den kan læses oven på en streg. */
+  function letterLabel(x, y, value, angle, fill, c) {
+    const fs = 0.78 * c.u;
+    const text = fmtM(Math.round(value * 10) / 10);
+    const hw = (text.length * 0.56 * fs + 0.3 * c.u) / 2;
+    return '<g transform="translate(' + f(x) + ' ' + f(y) + ') rotate(' + f(angle) + ')">' +
+      '<rect x="' + f(-hw) + '" y="' + f(-0.5 * c.u) + '" width="' + f(hw * 2) + '" height="' + f(c.u) + '" fill="' + fill + '"/>' +
+      '<text y="' + f(fs * 0.36) + '" text-anchor="middle" font-size="' + f(fs) + '" font-weight="600" fill="#45433a">' + esc(text) + '</text></g>';
+  }
+
+  /* Målestregen langs en væg: fra hjørnet til første bogstav, mellem bogstaverne og videre til næste hjørne. */
+  function letterChain(side, list, c) {
+    const u = c.u;
+    const hall = c.hall;
+    const len = sideLength(hall, side);
+    const off = 3.2 * u;
+    const tick = 0.3 * u;
+    const base = sidePoint(hall, side, 0);
+    const angle = readableAngle(base.angle, c.rot);
+    const at = (pos, out) => {
+      const p = sidePoint(hall, side, pos);
+      return { x: p.x + p.ox * out, y: p.y + p.oy * out };
+    };
+    const line = (a, b) => '<line x1="' + f(a.x) + '" y1="' + f(a.y) + '" x2="' + f(b.x) + '" y2="' + f(b.y) + '" stroke="#6d6a5f" stroke-width="' + f(0.05 * u) + '"/>';
+    const stops = list.map((l) => clamp(l.pos, 0, len)).sort((a, b) => a - b);
+    let out = line(at(0, off), at(len, off));
+    stops.forEach((pos) => { out += line(at(pos, 2.1 * u), at(pos, off + tick)); });
+    [0, len].forEach((pos) => { out += line(at(pos, off - tick), at(pos, off + tick)); });
+    [0].concat(stops, [len]).forEach((from, i, all) => {
+      const to = all[i + 1];
+      if (to === undefined || to - from < 0.05) return;
+      /* En kort strækning har ikke plads til teksten på stregen, så den løftes ud over den. */
+      const lift = to - from < 3.4 * u ? 1.05 * u : 0;
+      const q = at((from + to) / 2, off + lift);
+      out += letterLabel(q.x, q.y, to - from, angle, BG, c);
+    });
+    return out;
+  }
+
+  /* Et bogstav inde på banen får sin afstand til de to nærmeste vægge. */
+  function letterInner(l, c) {
+    const u = c.u;
+    const hall = c.hall;
+    const toX = l.x <= hall.length / 2 ? 0 : hall.length;
+    const toY = l.y <= hall.width / 2 ? 0 : hall.width;
+    const dash = ' stroke="#6d6a5f" stroke-width="' + f(0.05 * u) + '" stroke-dasharray="' + f(0.35 * u) + ' ' + f(0.3 * u) + '"/>';
+    let out = '';
+    if (Math.abs(l.x - toX) > 0.05) {
+      out += '<line x1="' + f(l.x) + '" y1="' + f(l.y) + '" x2="' + f(toX) + '" y2="' + f(l.y) + '"' + dash +
+        letterLabel((l.x + toX) / 2, l.y, Math.abs(l.x - toX), readableAngle(0, c.rot), SURFACE, c);
+    }
+    if (Math.abs(l.y - toY) > 0.05) {
+      out += '<line x1="' + f(l.x) + '" y1="' + f(l.y) + '" x2="' + f(l.x) + '" y2="' + f(toY) + '"' + dash +
+        letterLabel(l.x, (l.y + toY) / 2, Math.abs(l.y - toY), readableAngle(90, c.rot), SURFACE, c);
+    }
+    return out;
+  }
+
+  function letters(course, c) {
+    const list = course ? course.letters || [] : [];
+    if (!list.length) return '';
+    return GBS.Store.SIDES.map((side) => {
+      const on = list.filter((l) => l.side === side);
+      return on.length ? letterChain(side, on, c) : '';
+    }).join('') + list.filter((l) => !l.side).map((l) => letterInner(l, c)).join('') + list.map((l) => letter(l, c)).join('');
+  }
+
+  /* Et tryk tæt på en væg sætter bogstavet på væggen. Længere inde bliver det stående, hvor man trykker. */
+  function letterAt(hall, x, y, c) {
+    const inside = x >= 0 && y >= 0 && x <= hall.length && y <= hall.width;
+    const wall = Math.min(x, y, hall.length - x, hall.width - y);
+    if (!inside || wall < 2.5 * c.u) return projectEdge(hall, x, y);
+    return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+  }
+
   function gridLines(hall, step, skip) {
     let d = '';
     for (let x = step; x < hall.length - 1e-6; x += step) {
@@ -513,7 +612,8 @@
     return '<rect width="' + f(hall.length) + '" height="' + f(hall.width) + '" rx="' + f(0.7 * c.u) + '" fill="' + SURFACE + '"/>' +
       (showGrid ? grid(hall) : '') +
       '<rect width="' + f(hall.length) + '" height="' + f(hall.width) + '" rx="' + f(0.7 * c.u) + '" fill="none" stroke="' + WALL + '" stroke-width="' + f(0.16 * c.u) + '"/>' +
-      dimension('top', hall.length, c, course) + dimension('left', hall.width, c, course);
+      dimension('top', hall.length, c, course) + dimension('left', hall.width, c, course) +
+      letters(course, c);
   }
 
   /* ---------- Udstrækning ---------- */
@@ -536,6 +636,14 @@
         add(m, Math.max(2 * c.u, Math.hypot(sz.hw, sz.hh)));
       });
       course.paths.forEach((p) => p.points.forEach((q) => add(q, 2 * c.u)));
+      (course.letters || []).forEach((l) => {
+        if (!l.side) add(l, 2 * c.u);
+        /* Plads til afstandene: top og venstre skal også have hallens eget mål med. */
+        if (l.side === 'top') y0 = Math.min(y0, -6.6 * c.u);
+        if (l.side === 'left') x0 = Math.min(x0, -6.6 * c.u);
+        if (l.side === 'bottom') y1 = Math.max(y1, hall.width + 5.2 * c.u);
+        if (l.side === 'right') x1 = Math.max(x1, hall.length + 5.2 * c.u);
+      });
     }
     return { x0, y0, x1, y1 };
   }
@@ -586,6 +694,7 @@
     makeCtx, viewTransform, toView, fromView, chooseRot,
     obstacle, obstacleGeom, labelInfo, label2Info, label3Info, isFreeMarker,
     freeMarkerSize, freeMarkerAngle, decoration, decorBox, edgeGeom, marker, markerKeys, projectEdge, sidePoint, sideLength,
+    letter, letterGeom, letterAt,
     path, pathD, pathStroke, flatten,
     surface, viewBounds, standalone,
   };

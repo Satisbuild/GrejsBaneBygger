@@ -22,6 +22,7 @@
     { kind: 'change', label: 'Mål/start', hint: 'Tryk på banen for at placere et skift mellem mål og start.' },
     { kind: 'judge', label: 'Dommer', hint: 'Tryk ved en væg for at placere dommeren.' },
     { kind: 'gate', label: 'Ind/ud', hint: 'Tryk ved en væg for at placere ind- og udgang.' },
+    { kind: 'letter', label: 'Bogstav', hint: 'Tryk ved en væg eller inde på banen for at placere et bogstav.' },
     { kind: 'tree', label: 'Træ', hint: 'Tryk på banen for at placere et træ.' },
     { kind: 'bush', label: 'Busk', hint: 'Tryk på banen for at placere en busk.' },
     { kind: 'flowers', label: 'Blomster', hint: 'Tryk på banen for at placere en blomsterkasse.' },
@@ -29,6 +30,7 @@
   const TYPE_NAMES = { vertical: 'Lodret', oxer: 'Oxer', triple: 'Triple Bar', pole: 'Bom' };
   const DECOR_NAMES = { tree: 'Træ', bush: 'Busk', flowers: 'Blomster' };
   const MARKER_NAMES = { start: 'START', finish: 'MÅL', change: 'MÅL/START', judge: 'Dommer', entrance: 'Ind', exit: 'Ud' };
+  const LETTER_ORDER = 'AKEHCMBFXDGILNOPQRSTUVWYZ';
   const STEPS = [[0, 'Fri'], [5, '5°'], [15, '15°'], [45, '45°'], [90, '90°']];
 
   let current = null;
@@ -96,7 +98,7 @@
 
     /* ---------- Fortryd / gentag ---------- */
 
-    const snapshot = () => JSON.stringify({ obstacles: course.obstacles, markers: course.markers, paths: course.paths, distances: course.distances || {}, decorations: course.decorations || [] });
+    const snapshot = () => JSON.stringify({ obstacles: course.obstacles, markers: course.markers, paths: course.paths, distances: course.distances || {}, decorations: course.decorations || [], letters: course.letters || [] });
     let present = snapshot();
     const undoStack = [];
     const redoStack = [];
@@ -120,10 +122,13 @@
       course.paths = d.paths;
       course.distances = d.distances;
       course.decorations = d.decorations;
+      const lettersChanged = JSON.stringify(course.letters || []) !== JSON.stringify(d.letters);
+      course.letters = d.letters;
       present = json;
       if (selection && !findSelected()) selection = null;
       Store.touchCourse(course);
       renderAll();
+      if (lettersChanged) refit();
     }
 
     function undo() {
@@ -273,6 +278,8 @@
         const d = decorations().find((q) => q.id === sel.id);
         const g = layers.decorations.querySelector('[data-el="' + sel.id + '"]');
         if (d && g) g.innerHTML = Scene.decoration(d, ctx);
+      } else if (sel.kind === 'letter') {
+        renderSurface();
       }
     }
 
@@ -306,8 +313,14 @@
       return course.decorations;
     }
 
+    function letters() {
+      if (!course.letters) course.letters = [];
+      return course.letters;
+    }
+
     function findSelected() {
       if (!selection) return null;
+      if (selection.kind === 'letter') return letters().find((l) => l.id === selection.id) || null;
       if (selection.kind === 'decor') return decorations().find((d) => d.id === selection.id) || null;
       if (selection.kind === 'obstacle') return course.obstacles.find((o) => o.id === selection.id) || null;
       if (selection.kind === 'path') return course.paths.find((p) => p.id === selection.id) || null;
@@ -368,6 +381,10 @@
           const c = toScreen(g.cx, g.cy);
           html += selRect(c.x, c.y, g.hw * cam.s + 4, g.hh * cam.s + 4, g.angle + rot, frame);
         }
+      } else if (selection.kind === 'letter') {
+        const g = Scene.letterGeom(item, ctx);
+        const c = toScreen(g.cx, g.cy);
+        html += selRect(c.x, c.y, g.hw * cam.s + 4, g.hh * cam.s + 4, 0, frame);
       } else if (selection.kind === 'path') {
         const pts = item.points.map((q) => toScreen(q.x, q.y));
         html += '<path d="' + Scene.pathD(pts, item.smooth) + '" fill="none" stroke="#1560bd" stroke-opacity=".28" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>';
@@ -441,13 +458,17 @@
       const consider = (hit, d) => {
         if (d > tol) return;
         const isSel = selection && selection.kind === hit.kind && selection.id === hit.id && selection.key === hit.key;
-        const score = d - (isSel ? 2 / cam.s : 0) + (hit.kind === 'path' ? 6 / cam.s : 0) + (hit.kind === 'decor' ? 10 / cam.s : 0);
+        const score = d - (isSel ? 2 / cam.s : 0) + (hit.kind === 'path' ? 6 / cam.s : 0) + (hit.kind === 'decor' ? 10 / cam.s : 0) + (hit.kind === 'letter' ? 6 / cam.s : 0);
         if (!best || score <= best.score) best = Object.assign({ score }, hit);
       };
       /* Pynt vælges kun, når der ikke ligger et spring eller en ridevej samme sted. */
       decorations().forEach((item) => {
         const box = Scene.decorBox(item, ctx);
         consider({ kind: 'decor', id: item.id }, distRect(w.x, w.y, item.x, item.y, box.hw, box.hh, item.rotation));
+      });
+      letters().forEach((item) => {
+        const g = Scene.letterGeom(item, ctx);
+        consider({ kind: 'letter', id: item.id }, distRect(w.x, w.y, g.cx, g.cy, g.hw, g.hh, -rot));
       });
       course.paths.forEach((p) => {
         const pts = Scene.flatten(p.points, p.smooth);
@@ -720,6 +741,8 @@
         }
       } else if (selection.kind === 'decor') {
         movePoint(item, orig.x + dx, orig.y + dy);
+      } else if (selection.kind === 'letter') {
+        moveLetter(item, w);
       } else if (selection.kind === 'marker') {
         const key = selection.key;
         if (Scene.isFreeMarker(key)) {
@@ -733,6 +756,18 @@
       }
       updateElement(selection);
       renderOverlay();
+    }
+
+    function moveLetter(item, w) {
+      const at = Scene.letterAt(hall, w.x, w.y, ctx);
+      if (view.snap) Object.keys(at).forEach((k) => { if (k !== 'side') at[k] = Math.round(at[k]); });
+      ['side', 'pos', 'x', 'y'].forEach((k) => { delete item[k]; });
+      Object.assign(item, at);
+    }
+
+    /* Bogstaver på en væg kræver mere plads om banen, så visningen følger med, medmindre man selv har zoomet. */
+    function refit() {
+      if (!camTouched) fit(true);
     }
 
     /* En samlet ind/ud er én boks: udgangen følger altid indgangens plads. */
@@ -800,6 +835,7 @@
             commit();
             renderCtx();
             ensureVisible();
+            if (g.hit.kind === 'letter') refit();
           }
           break;
         case 'rotate':
@@ -1004,6 +1040,15 @@
         afterPlace({ kind: 'decor', id: d.id });
         return;
       }
+      if (kind === 'letter') {
+        const l = { id: Store.uid('l'), text: nextLetter() };
+        moveLetter(l, w);
+        letters().push(l);
+        commit();
+        afterPlace({ kind: 'letter', id: l.id });
+        refit();
+        return;
+      }
       if (Scene.isFreeMarker(kind)) {
         const existing = course.markers[kind];
         const pos = { x: Store.round2(clamp(w.x, 0, hall.length)), y: Store.round2(clamp(w.y, 0, hall.width)) };
@@ -1054,6 +1099,21 @@
       afterPlace(selection);
     }
 
+    /* Næste ledige bogstav i rækkefølgen rundt om banen. */
+    function nextLetter() {
+      const used = letters().map((l) => l.text);
+      return LETTER_ORDER.split('').find((t) => !used.includes(t)) || 'A';
+    }
+
+    function setLetters(list, hint) {
+      course.letters = list;
+      if (selection && selection.kind === 'letter') selection = null;
+      commit();
+      renderAll();
+      refit();
+      showHint(hint, false, 2600);
+    }
+
     /* Efter en placering: tilbage til Vælg/flyt med det nye element valgt, klar til at dreje. */
     function afterPlace(sel) {
       setMode('select', { keepSelection: true });
@@ -1084,6 +1144,9 @@
       if (selection.kind === 'obstacle' || selection.kind === 'decor' || Scene.isFreeMarker(selection.key)) w = item;
       else if (selection.kind === 'marker') {
         const g = Scene.edgeGeom(selection.key, item, ctx);
+        w = { x: g.cx, y: g.cy };
+      } else if (selection.kind === 'letter') {
+        const g = Scene.letterGeom(item, ctx);
         w = { x: g.cx, y: g.cy };
       } else w = item.points[Math.floor(item.points.length / 2)];
       const p = toScreen(w.x, w.y);
@@ -1178,6 +1241,7 @@
       if (selection.kind === 'obstacle') course.obstacles = course.obstacles.filter((o) => o.id !== selection.id);
       else if (selection.kind === 'path') course.paths = course.paths.filter((p) => p.id !== selection.id);
       else if (selection.kind === 'decor') course.decorations = decorations().filter((d) => d.id !== selection.id);
+      else if (selection.kind === 'letter') course.letters = letters().filter((l) => l.id !== selection.id);
       else {
         const e = course.markers.entrance;
         if (selection.key === 'entrance' && e && e.linked) course.markers.exit = null;
@@ -1188,17 +1252,24 @@
       renderAll();
       showHint('Slettet. Tryk Fortryd for at få det tilbage.', false, 2200);
       ensureVisible();
+      refit();
     }
 
     function nudge(dx, dy) {
       const item = findSelected();
       if (!item || selection.kind === 'path') return;
       if (selection.kind === 'marker' && !('x' in item)) return;
-      item.x = Store.round2(clamp(item.x + dx, 0, hall.length));
-      item.y = Store.round2(clamp(item.y + dy, 0, hall.width));
+      if (selection.kind === 'letter' && item.side) {
+        const along = item.side === 'top' || item.side === 'bottom' ? dx : dy;
+        item.pos = Store.round2(clamp(item.pos + along, 0, Scene.sideLength(hall, item.side)));
+      } else {
+        item.x = Store.round2(clamp(item.x + dx, 0, hall.length));
+        item.y = Store.round2(clamp(item.y + dy, 0, hall.width));
+      }
       commit();
       updateElement(selection);
       renderOverlay();
+      if (selection.kind === 'letter') renderCtx();
     }
 
     function renumberAll() {
@@ -1359,6 +1430,8 @@
         html = markerPanel(item);
       } else if (item && selection.kind === 'decor') {
         html = decorPanel(item);
+      } else if (item && selection.kind === 'letter') {
+        html = letterPanel(item);
       } else if (item && selection.kind === 'path') {
         html = pathPanel(item);
       } else if (sideLayout.matches) {
@@ -1426,6 +1499,17 @@
         actBtn('rotl', 'rotl', 'Drej venstre') + actBtn('rotr', 'rotr', 'Drej højre') +
         actBtn('copy', 'copy', 'Kopier') + actBtn('delete', 'trash', 'Slet', 'danger') + '</div>' +
         '<div class="ctx-more open">' + stepper('diameter', d.type === 'flowers' ? 'Længde' : 'Størrelse', d.diameter, 'm') + '</div>';
+    }
+
+    function letterPanel(l) {
+      return panelHead('Bogstav') +
+        '<div class="act-row">' + (l.side ? actBtn('nextSide', 'rotr', 'Næste væg') : '') + actBtn('delete', 'trash', 'Slet', 'danger') + '</div>' +
+        '<div class="num-row"><label class="num-field"><span>Bogstav</span><input data-field="letter" value="' + esc(l.text) + '" maxlength="3" autocomplete="off" autocapitalize="characters" enterkeyhint="done"></label></div>' +
+        '<div class="ctx-more open">' +
+        (l.side
+          ? stepper('pos', 'Fra hjørnet', l.pos, 'm')
+          : stepper('x', 'Langs hallens længde', l.x, 'm') + stepper('y', 'Langs hallens bredde', l.y, 'm')) +
+        '</div>';
     }
 
     function pathPanel(p) {
@@ -1506,6 +1590,7 @@
           syncLinkedGate();
           commit();
           renderAll();
+          if (selection.kind === 'letter') refit();
           break;
         }
         case 'splitGate': {
@@ -1588,6 +1673,17 @@
     const FIELD_RANGE = { width: [0.5, 15, 0.5], depth: [0.3, 6, 0.1], size: [40, 300, 10], diameter: [0.5, 15, 0.5] };
 
     function setField(field, value) {
+      if (selection && selection.kind === 'letter') {
+        const l = findSelected();
+        const max = field === 'pos' ? Scene.sideLength(hall, l.side) : field === 'x' ? hall.length : hall.width;
+        l[field] = Store.round2(clamp(value, 0, max));
+        commit();
+        updateElement(selection);
+        renderOverlay();
+        const box = root.querySelector('[data-field="' + field + '"]');
+        if (box) box.value = fmtNum(l[field], 1);
+        return;
+      }
       const o = selectedTurnable();
       if (!o) return;
       if (field === 'rotation') {
@@ -1605,6 +1701,7 @@
     }
 
     function stepField(field, dir) {
+      if (selection && selection.kind === 'letter') { setField(field, findSelected()[field] + dir); return; }
       const o = selectedTurnable();
       if (!o) return;
       if (field === 'rotation') { rotateBy(dir * (view.rotationStep || 15)); return; }
@@ -1615,6 +1712,17 @@
       const input = e.target;
       if (input.dataset.range) { setLineRange(input.dataset.range, +input.value); return; }
       const field = input.dataset.field;
+      if (field === 'letter') {
+        /* Et tomt felt ændrer intet, så bogstavet ikke forsvinder, mens man skriver et nyt. */
+        const l = findSelected();
+        const text = input.value.trim().toUpperCase().slice(0, 3);
+        if (l && text) {
+          l.text = text;
+          updateElement(selection);
+          renderOverlay();
+        }
+        return;
+      }
       if (field !== 'number' && field !== 'number2' && field !== 'number3') return;
       const o = selectedObstacle();
       if (!o) return;
@@ -1635,7 +1743,19 @@
       const field = input.dataset.field;
       if (!field) return;
       if (field === 'number' || field === 'number2' || field === 'number3') { commit(); return; }
+      if (field === 'letter') {
+        const l = findSelected();
+        if (l) input.value = l.text;
+        commit();
+        return;
+      }
       const v = parseNum(input.value);
+      if (selection && selection.kind === 'letter') {
+        const l = findSelected();
+        if (!isNaN(v)) setField(field, v);
+        input.value = fmtNum(l[field], 1);
+        return;
+      }
       const o = selectedTurnable();
       if (isNaN(v)) {
         if (o) input.value = fmtNum(fieldValue(o, field), 1);
@@ -1672,6 +1792,7 @@
         return Scene.obstacle({ type: kind, x: w.x, y: w.y, rotation: 0, number: '', showNumber: false, showArrow: true, width: d.width, depth: d.depth, label: null }, ctx);
       }
       if (Store.DECOR_TYPES.includes(kind)) return Scene.decoration({ type: kind, x: w.x, y: w.y, rotation: 0, diameter: Store.DECOR_SIZES[kind] }, ctx);
+      if (kind === 'letter') return Scene.letter(Object.assign({ text: nextLetter() }, Scene.letterAt(hall, w.x, w.y, ctx)), ctx);
       if (Scene.isFreeMarker(kind)) return Scene.marker(kind, { x: w.x, y: w.y }, ctx);
       const edge = Scene.projectEdge(hall, w.x, w.y);
       return kind === 'judge' ? Scene.marker('judge', edge, ctx) : Scene.marker('entrance', Object.assign({ linked: true }, edge), ctx);
@@ -1855,6 +1976,17 @@
       });
     }
 
+    /* Navnet gemmes på banen, så det følger med, når banen deles, og foreslås igen på næste bane. */
+    function saveMadeBy(value) {
+      const name = value.trim().slice(0, 60);
+      const show = Object.assign({}, course.show);
+      if (name) show.madeBy = name;
+      else delete show.madeBy;
+      course.show = show;
+      Store.settings.madeBy = name;
+      Store.touchCourse(course);
+    }
+
     function runOutput(action, contest) {
       if (action === 'png') {
         Exporter.exportPng(hall, course, { contest }).then(() => toast('Billedet er gemt i dine overførsler.')).catch((err) => toast(err.message, 'error'));
@@ -1870,13 +2002,17 @@
       UI.openDialog({
         title: 'Hvad skal banen bruges til?',
         sheet: true,
-        body: '<div class="out-options">' +
+        body: '<label class="field out-made"><span>Lavet af</span><span class="field-input"><input data-made-by value="' + esc((course.show && course.show.madeBy) || Store.settings.madeBy || '') + '" placeholder="Dit navn (kan stå tomt)" maxlength="60" autocomplete="off"></span></label>' +
+          '<div class="out-options">' +
           option('training', 'route', 'Træning', 'Banen og afstandene mellem springene.') +
           option('contest', 'trophy', 'Stævne', 'Med logo, klasse, tempo, tider og banedesign.') + '</div>',
         onOpen: (d, fin) => {
           d.addEventListener('click', (e) => {
             const b = e.target.closest('[data-out]');
-            if (b) fin(b.dataset.out);
+            if (b) {
+              saveMadeBy(d.querySelector('[data-made-by]').value);
+              fin(b.dataset.out);
+            }
           });
         },
       }).then((choice) => {
@@ -1969,7 +2105,7 @@
         field('timeAllowed', 'Fejlfri tid i sek', '71', true) + field('timeMax', 'Max tid i sek', '142', true) + '</div>' +
         '<p class="show-note">Fejlfri tid og max tid regnes ud fra længde og tempo. Du kan selv rette dem.</p>' +
         '<h3 class="show-head">Navne</h3><div class="show-grid">' +
-        field('designer', 'Banedesign', 'Navn') + field('extra', 'Ekstra navn', 'F.eks. dommer') + '</div>' +
+        field('designer', 'Banedesign', 'Navn') + field('extra', 'Ekstra navn', 'F.eks. dommer') + field('madeBy', 'Lavet af', 'Navn') + '</div>' +
         '<div class="row-field show-toggle"><span class="row-label">Vis afstande mellem spring</span>' + toggle('showDistances', show.showDistances) + '</div>';
 
       const preview = () => {
@@ -2012,6 +2148,7 @@
         const value = e.target.value.trim();
         if (value) show[key] = value;
         else delete show[key];
+        if (key === 'madeBy') Store.settings.madeBy = value;
         if (key === 'tempo' || key === 'length') updateTimes();
         save();
       });
@@ -2069,6 +2206,9 @@
         '<div class="row-field col"><span class="row-label">Vis banen</span>' + seg('orientation', [['auto', 'Automatisk'], ['landscape', 'Liggende'], ['portrait', 'Stående']], view.orientation) + '</div>' +
         '<div class="row-field col"><span class="row-label">Drej i trin</span>' + seg('rotationStep', STEPS, view.rotationStep) + '</div>' +
         '<hr>' +
+        '<button type="button" class="menu-item" data-menu="lettersStd">' + icon('letter') + '<span>Sæt standardbogstaver på (A, K, E, H …)</span></button>' +
+        (letters().length ? '<button type="button" class="menu-item danger" data-menu="lettersClear">' + icon('trash') + '<span>Fjern alle bogstaver</span></button>' : '') +
+        '<hr>' +
         '<button type="button" class="menu-item" data-menu="share">' + icon('share') + '<span>Del bane</span></button>' +
         '<button type="button" class="menu-item" data-menu="png">' + icon('image') + '<span>Gem bane som billede (PNG)</span></button>' +
         '<button type="button" class="menu-item" data-menu="print">' + icon('print') + '<span>Udskriv eller gem som PDF</span></button>' +
@@ -2109,6 +2249,10 @@
           openShare();
         } else if (action === 'png' || action === 'print') {
           chooseOutput(action);
+        } else if (action === 'lettersStd') {
+          setLetters(Store.standardLetters(hall), 'Træk bogstaverne, hvor du vil have dem. Tryk Fortryd for at gå tilbage.');
+        } else if (action === 'lettersClear') {
+          setLetters([], 'Bogstaverne er fjernet. Tryk Fortryd for at få dem tilbage.');
         } else if (action === 'rename') {
           renameCourse();
         } else if (action === 'renumber') {

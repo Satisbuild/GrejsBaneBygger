@@ -75,6 +75,16 @@
       '<tspan fill="' + FOREST + '" font-weight="800">grejsbanebyg.com</tspan></text></a>';
   }
 
+  /* "Lavet af" nederst til højre. Returnerer den y, resten af arket skal fortsætte fra. */
+  function madeBy(course, width, pad, y) {
+    const name = course.show && course.show.madeBy;
+    if (!name) return { svg: '', y };
+    return {
+      svg: '<text x="' + (width - pad) + '" y="' + y + '" font-size="18" fill="' + INK_2 + '" text-anchor="end">Lavet af <tspan fill="' + INK + '" font-weight="800">' + esc(name) + '</tspan></text>',
+      y: y + 10,
+    };
+  }
+
   /* Overskrift og kort med afstandene. Returnerer tom tekst og uændret y, hvis ingen er udfyldt. */
   function distanceSection(course, pad, top, width) {
     const distances = course.distances || {};
@@ -181,6 +191,9 @@
       body += text(W - PAD, y + 26, s.extra, 17, INK_2, 'text-anchor="end"');
       y += 26;
     }
+    const made = madeBy(course, W, PAD, y + 28);
+    body += made.svg;
+    if (made.svg) y = made.y;
     y += 18;
     body += promo(W, PAD, y);
     const H = Math.round(y + PROMO_H);
@@ -222,6 +235,9 @@
     const section = distanceSection(course, PAD, y, W);
     body += section.svg;
     y = section.y;
+    const made = madeBy(course, W, PAD, y + 4);
+    body += made.svg;
+    if (made.svg) y = made.y + 12;
     body += promo(W, PAD, y);
     const H = Math.round(y + PROMO_H);
 

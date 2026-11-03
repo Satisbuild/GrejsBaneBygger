@@ -339,6 +339,7 @@ a.card:active { transform: scale(.995); }
 
 /* ---------- Udskrift: kun banen ---------- */
 /* Valg af træning eller stævne */
+.out-made { margin-bottom: 14px; }
 .out-options { display: flex; flex-direction: column; gap: 10px; padding-bottom: 14px; }
 .out-option { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 76px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; text-align: left; }
 .out-option:hover { border-color: var(--forest); background: var(--forest-tint); }
